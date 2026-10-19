@@ -16,6 +16,12 @@ Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Pr
 - Mobile Lighthouse snapshot: Accessibility 100, Best Practices 100, Agentic Browsing 100. SEO 75: no meta description (private operator console; not addressed).
 - Added controller regression coverage for observed/desired state, readiness-gated actions, system-source lifecycle events, and unknown timestamps.
 
+## Review and integration
+
+- Independent review found two P2 issues: expired credentials labeled active and stale sidebar lifecycle after polling. Both were fixed; expiry regression assertions added. Polling updates the existing sidebar detail node without replacing its focused button.
+- Merged `origin/main` including deployment PR #1 before final typecheck, native tests, and build.
+- Deployment checks: `python3 tests/deployment.test.py -v` passed the defaults test; live TLS test skipped because Caddy was unavailable. An initial unittest-discovery invocation matched no tests; the direct invocation above is authoritative.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.

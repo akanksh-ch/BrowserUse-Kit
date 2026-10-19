@@ -17,6 +17,10 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     assert.equal($('release').disabled, true);
     selected.state = 'ready'; renderWorkspace();
     assert.equal($('viewer-connect').disabled, false);
+    assert.equal(tokenStatus({expiresAt: Date.now() - 1000}), 'expired');
+    assert.equal(tokenStatus({expiresAt: Date.now() + 60000}), 'active');
+    assert.equal(tokenStatus({revoked: true, expiresAt: Date.now() + 60000}), 'revoked');
+    assert.equal(tokenStatus({}), 'expiry not reported');
     assert.equal(sourceOf({type:'workspace.created'}), 'system');
     assert.equal(sourceOf({type:'agent.status'}), 'agent');
     events = [{type:'workspace.created',summary:'Created'}];
