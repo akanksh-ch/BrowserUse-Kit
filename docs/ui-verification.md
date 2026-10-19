@@ -1,3 +1,55 @@
+# Operator UI verification
+
+## Scope
+
+Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Preserve cookie/CSRF API integration and server-side authorization; no backend or container changes. Desktop uses two equal grid columns; narrow screens stack them. No speculative dashboard, fake telemetry, or simulated runtime readiness.
+
+## Executed evidence
+
+- `npm run typecheck`: passed.
+- `npm test`: 40 tests, 37 passed, 3 live-runtime tests skipped, 0 failed.
+- `npm run build`: passed; checked-in public assets regenerated.
+- Impeccable detector on frontend shell, controller, and stylesheet returned `[]`.
+- Chrome DevTools against the real local Node/SQLite service with a disposable `/tmp` database: CLI bootstrap, administrator login, cookie session restoration, create/select workspace, authoritative created/stopped state, command-history empty state, credentials dialog opening and Escape dismissal.
+- Viewer/control actions remain disabled for a workspace not reported ready.
+- Inspected full-page desktop and 390px mobile screenshots. Mobile measured `innerWidth=390`, document width `390`; no document-level horizontal overflow. Workspace panel navigation scrolls locally.
+- Mobile Lighthouse snapshot: Accessibility 100, Best Practices 100, Agentic Browsing 100. SEO 75: no meta description (private operator console; not addressed).
+- Added controller regression coverage for observed/desired state, readiness-gated actions, system-source lifecycle events, and unknown timestamps.
+
+## Review and integration
+
+- Independent review found two P2 issues: expired credentials labeled active and stale sidebar lifecycle after polling. Both were fixed; expiry regression assertions added. Polling updates the existing sidebar detail node without replacing its focused button.
+- Merged `origin/main` including deployment PR #1 before final typecheck, native tests, and build.
+- Deployment checks: `python3 tests/deployment.test.py -v` passed the defaults test; live TLS test skipped because Caddy was unavailable. An initial unittest-discovery invocation matched no tests; the direct invocation above is authoritative.
+
+## Hosted CI and production serving follow-up
+
+- Hosted workflow now runs `npm run build` after `npm run check`; check already typechecks both TypeScript projects. Deployment fixture/TLS steps are unchanged.
+- Re-ran `npm run check` (native suite plus five offline runtime checks) and production build successfully.
+- Fetched production HTML through the real backend on loopback, then fetched its JS/CSS references and the dynamically referenced controller chunk. All three current hashed assets returned 200 with matching content types; no stale asset reference observed.
+- Runtime-contract inspection found release failures could leave the client viewer interactive until renewal failed. Release now disables local pointer/keyboard input before the network request; a regression test forces HTTP 503 and checks view-only remains enforced. Server input gating remains authoritative.
+- 403/409/5xx UI errors now include permission/session, contention, or runtime-diagnostic recovery guidance respectively. This does not turn failures into readiness.
+
+## Workspace race checks
+
+Merged deployment PR #2 from main without removing either the TLS fixture step or frontend build step. Added runnable VM behavioral checks (no source-regex assertions): delay automation acquisition, switch A → B, resolve A's lease, assert no mutation is sent and no stale lease is installed; then assert a new mutation uses B. A delayed workspace-list response is also discarded after session epoch changes. Command, upload, and delete paths now capture inputs and use the guarded automation helper. Viewer bootstrap, token listing/issuance, and workspace switching discard stale continuations. `npm run check` and build pass after these changes.
+
+## Backend PR #4 contract check
+
+Inspected `origin/fix/v1-backend` without merging its pending changes. Command service consumes `{command,cwd}`; page transfer consumes `{owner}` containing a connection ID (or null to clear); renewal uses PUT `{id}` and release DELETE. Credential list returns numeric `expiresAt` and `revoked`. These match the frontend; no further implementation mismatch found.
+
+Expanded the runnable controller harness to execute actual registered form/button handlers: command inputs remain their submitted values during delayed acquisition; upload/delete keep the original directory if the path input changes while awaiting a lease; switching workspaces during upload sends no mutation. It also verifies page-transfer owner payload and renewal/release methods/IDs, alongside credential-expiry assertions. `npm run check` and production build pass. These are deterministic client checks, not claims of real runtime execution.
+
+## Remaining acceptance gates
+
+The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.
+
+Resource usage, resolved versions/image digest, and per-workspace capture/network-policy values are not exposed by the present workspace record. The console must not invent them. Existing explanatory security copy is not a live health attestation. Full SRS release acceptance remains broader than this UI refinement.
+
+## Historical integration smoke (before this refinement)
+
+The following records an earlier implementation; API limitations described here may have since changed. Current evidence and gates are above.
+
 # Operator UI integration smoke
 
 Tested against the real `src/server.ts`, Node 22, Chromium browser tools, isolated SQLite `/tmp/buk-ui-check.sqlite`, loopback port 3001. No source-server changes made for this task.
