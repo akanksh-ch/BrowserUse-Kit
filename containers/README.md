@@ -37,7 +37,7 @@ Restart means stop then start; volumes remain. Starts do not adopt arbitrary pre
 
 ## Sandbox and limits
 
-Chrome runs UID 1000 with no capabilities, no-new-privileges and no sandbox bypass. User-namespace creation must be supported by kernel sysctls and the runtime's maintained seccomp profile. On hosts whose default profile blocks `unshare -Ur`, startup fails intentionally. An administrator must supply a reviewed Chrome-compatible runtime profile before this host can be supported; never use seccomp-unconfined or disable Chrome sandboxing as a workaround. This deployment does not claim acceptance on an untested kernel/runtime combination.
+Chrome runs UID 1000 with only `CAP_SYS_CHROOT`, which its sandbox requires, plus no-new-privileges and no sandbox bypass; all other capabilities are dropped. User-namespace creation must be supported by kernel sysctls and the runtime's maintained seccomp profile. On hosts whose default profile blocks `unshare -Ur`, startup fails intentionally. An administrator must supply a reviewed Chrome-compatible runtime profile before this host can be supported; never use seccomp-unconfined or disable Chrome sandboxing as a workaround. This deployment does not claim acceptance on an untested kernel/runtime combination.
 
 Browser entrypoint takes an advisory exclusive lock on the persistent profile and retains it until Chrome exits. Shutdown sends TERM and waits for Chrome before releasing the lock; forced kills remain crash recovery, not guaranteed clean profile flush. Chrome is configured for a dedicated profile, disabled sync/extensions/clipboard, and workspace downloads.
 

@@ -40,9 +40,12 @@ class PolicyTests(unittest.TestCase):
         self.assertNotIn('--publish', script)
         self.assertNotIn(' --publish ', script)
         self.assertNotIn(' run -p ', script)
+        self.assertIn('--cap-drop ALL --cap-add SYS_CHROOT', script)
+        self.assertIn('--health-cmd /usr/local/bin/healthcheck.sh', script)
         entry = (ROOT / 'containers/browser/entrypoint.sh').read_text()
         self.assertNotIn('--no-sandbox', entry)
         self.assertIn('flock -n', entry)
+        self.assertIn('rm -f /profile/chrome/SingletonLock /profile/chrome/SingletonCookie /profile/chrome/SingletonSocket', entry)
         self.assertIn('unshare -Ur true', entry)
         self.assertIn('network-ready', entry)
 

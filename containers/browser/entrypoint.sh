@@ -8,6 +8,9 @@ until [ -f /tmp/network-ready ]; do i=$((i+1)); [ "$i" -lt 300 ] || exit 1; slee
 mkdir -p /profile/chrome /workspace/downloads
 exec 9>/profile/runtime.lock
 flock -n 9 || { echo 'Profile already locked' >&2; exit 1; }
+# Chrome's host-specific singleton links survive an unclean container exit.
+# The profile lock proves no other managed runtime is using this profile.
+rm -f /profile/chrome/SingletonLock /profile/chrome/SingletonCookie /profile/chrome/SingletonSocket
 # Require user namespaces; never fall back to disabling the sandbox.
 unshare -Ur true || { echo 'User namespace sandbox unavailable: check kernel/seccomp configuration' >&2; exit 1; }
 pids=''
