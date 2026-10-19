@@ -9,10 +9,11 @@ import { LeaseManager, type Principal } from './leases.js';
 import { McpGateway, connectChromeMcp, createStreamableMcp, MCP_VERSION, SHARED_PROFILE_WARNING } from './mcp.js';
 import { RfbInputGate } from './viewer.js';
 import { WebSocketServer, WebSocket } from 'ws';
-import { connect } from 'node:net';
 import { FileService, type FileActor, type SecurityHooks } from './files.js';
 import { CommandService } from './commands.js';
 import { prepareBrowserUpload } from './uploads.js';
+import { RootlessPodmanControl } from './rootless-control.js';
+import { CDP_PROBE, privateViewerStream } from './private-network.js';
 import { once } from 'node:events';
 import { mkdir, stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -23,8 +24,9 @@ import { isIP } from 'node:net';
 import { PageOwnership, type PageRecord } from './mcp.js';
 const exec = promisify(execFile);
 export type HostRunner = (file:string,args:string[])=>Promise<string>;
-const hostRun:HostRunner=async(file,args)=>String((await exec(file,args,{timeout:10000,maxBuffer:1024*1024})).stdout);
+const hostRun:HostRunner=async(file,args)=>String((await exec(file,args,{timeout:10000,maxBuffer:1024*1024,killSignal:'SIGKILL'})).stdout);
 const runtime=()=>process.env.OCI_RUNTIME==='podman'?'podman':'docker';
+const rootlessControl=()=>runtime()==='podman'&&process.getuid?.()!==0;
 function workspaceName(w:string){if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(w))throw Error('Invalid workspace identifier');return `buk-${w}`;}
 export async function privateBrowserAddress(w:string,run:HostRunner=hostRun){
  const name=workspaceName(w);const [c]=JSON.parse(await run(runtime(),['inspect',name+'-browser']));
@@ -32,7 +34,7 @@ export async function privateBrowserAddress(w:string,run:HostRunner=hostRun){
  const networks=c.NetworkSettings?.Networks??{};if(Object.keys(networks).length!==1||!networks[name+'-browser'])throw Error('Browser private network mismatch');
  const ip=networks[name+'-browser'].IPAddress;if(isIP(ip)!==4)throw Error('Private browser address unavailable');return ip as string;
 }
-export async function validateUtilityIsolation(c:Record<string,any>,w:string,run:HostRunner=hostRun){
+export async function validateUtilityIsolation(c:Record<string,any>,w:string,run:HostRunner=hostRun,rootless=rootlessControl()){
  const name=workspaceName(w),h=c.HostConfig;const networks=c.NetworkSettings?.Networks??{};
  if(c.Config?.Labels?.['browseruse.workspace']!==w||c.Config?.User!=='1000:1000'||Object.keys(networks).length!==1||!networks[name+'-utility'])throw Error('Utility workspace identity mismatch');
  if(!c.State?.Running||!h||h.Privileged||h.NetworkMode==='host'||h.PidMode||h.IpcMode==='host'||h.IpcMode?.startsWith('container:')||h.CapAdd?.length||!h.ReadonlyRootfs||!h.CapDrop?.some((x:string)=>x.toUpperCase()==='ALL')||!h.SecurityOpt?.some((x:string)=>/^no-new-privileges(?:[=:]true)?$/.test(x))||Object.keys(h.PortBindings??{}).length)throw Error('Utility isolation missing');
@@ -44,7 +46,7 @@ export async function validateUtilityIsolation(c:Record<string,any>,w:string,run
  const [egress]=JSON.parse(await run(runtime(),['inspect',name+'-egress']));const ip=egress?.NetworkSettings?.Networks?.[name+'-utility']?.IPAddress;
  if(isIP(ip)!==4||!egress.State?.Running)throw Error('Controlled proxy unavailable');
  for(const family of ['iptables','ip6tables']){
-  const rules=await run('nsenter',['-t',String(c.State.Pid),'-n',family,'-S','OUTPUT']);
+  const rules=rootless?await new RootlessPodmanControl(run).firewall(w,'utility',family as 'iptables'|'ip6tables'):await run('nsenter',['-t',String(c.State.Pid),'-n',family,'-S','OUTPUT']);
   const lines=rules.trim().split('\n');const allowed=new Set(['-P OUTPUT DROP','-A OUTPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT','-A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT','-A OUTPUT -o lo -j ACCEPT',`-A OUTPUT -d ${ip}/32 -p tcp -m tcp --dport 3128 -j ACCEPT`]);
   if(!lines.includes('-P OUTPUT DROP')||lines.some(line=>!allowed.has(line))||(family==='iptables'&&!lines.some(line=>line.includes(`-d ${ip}/32`))))throw Error('Direct egress policy missing or bypassable');
  }
@@ -124,7 +126,8 @@ export function createApp(services:ServerServices,options:ServerOptions) {
 }
 export function createHttpServer(services:ServerServices,options:ServerOptions){return createServer(createApp(services,options));}
 
-export async function browserCdp(w:string,method:string,params:Record<string,unknown>={},run:HostRunner=hostRun):Promise<any>{
+export async function browserCdp(w:string,method:string,params:Record<string,unknown>={},run:HostRunner=hostRun,rootless=rootlessControl()):Promise<any>{
+ if(rootless)return JSON.parse(await new RootlessPodmanControl(run).probe(w,address=>({file:process.execPath,args:['-e',CDP_PROBE,address,method,JSON.stringify(params)]})));
  const ip=await privateBrowserAddress(w,run);const response=await fetch(`http://${ip}:9223/json/version`,{signal:AbortSignal.timeout(3000),redirect:'error'});if(!response.ok)throw Error('Private CDP unavailable');
  const version=await response.json() as {webSocketDebuggerUrl?:string};const endpoint=new URL(version.webSocketDebuggerUrl??'');if(endpoint.protocol!=='ws:'||!/^\/devtools\/browser\/[a-zA-Z0-9-]+$/.test(endpoint.pathname))throw Error('Unexpected CDP endpoint');endpoint.hostname=ip;endpoint.port='9223';
  return new Promise((resolve,reject)=>{const socket=new WebSocket(endpoint);const timer=setTimeout(()=>{socket.terminate();reject(Error('CDP timeout'));},5000);const done=(error:unknown,result?:unknown)=>{clearTimeout(timer);socket.close();error?reject(error):resolve(result);};socket.on('open',()=>socket.send(JSON.stringify({id:1,method,params})));socket.on('message',raw=>{try{const data=JSON.parse(raw.toString());if(data.id===1)done(data.error?Error('CDP operation failed'):null,data.result);}catch(e){done(e);}});socket.on('error',e=>done(e));socket.on('close',()=>{clearTimeout(timer);reject(Error('CDP closed'));});});
@@ -158,8 +161,8 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
   const ip=await privateBrowserAddress(w);const [utility]=JSON.parse(await hostRun(runtime(),['inspect',workspaceName(w)+'-utility']));await validateUtilityIsolation(utility,w);
   await hostRun(runtime(),['exec',workspaceName(w)+'-browser','/usr/local/bin/healthcheck.sh']);
   await hostRun(runtime(),['exec',workspaceName(w)+'-browser','unshare','-Ur','true']);
-  const response=await fetch(`http://${ip}:9223/json/version`,{signal:AbortSignal.timeout(3000),redirect:'error'});if(!response.ok)throw Error('CDP unhealthy');
-  const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl:`http://${ip}:9223`});try{const tools=await upstream.listTools();if(!tools.tools.some(t=>t.name==='list_pages'))throw Error('MCP unsupported');}finally{await upstream.close();}
+  await browserCdp(w,'Target.getTargets');
+  const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl:`http://${ip}:9223`,rootlessPodman:rootlessControl()});try{const tools=await upstream.listTools();if(!tools.tools.some(t=>t.name==='list_pages'))throw Error('MCP unsupported');}finally{await upstream.close();}
   await files(w);store.audit(w,'health.checked','system','Chrome/display/VNC/CDP/MCP/utility/egress/storage readiness checked');
   // Prove the installed gate rejects a forged key, not just that the class loads.
   let forwarded=false;const gate=new RfbInputGate({workspaceId:w,connectionId:'probe',subject:'probe',reconnectId:'probe',permissions:[]},()=>{},()=>{throw Error('deny');},()=>{forwarded=true;},true);gate.push(Buffer.from([4,1,0,0,0,0,0,65]));gate.close();if(forwarded)throw Error('Input gate unsafe');
@@ -192,7 +195,7 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
    const sid=req.headers['mcp-session-id']; if(Array.isArray(sid))throw Error('Invalid session');let session=sid?sessions.get(sid):undefined;
    if(session&&(session.owner!==p.id||session.workspace!==w))throw Error('Session identity mismatch');
    if(!session){if(sid||req.method!=='POST')throw Error('Session not found');const browserUrl=`http://${await privateBrowserAddress(w)}:9223`;
-    const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl});
+    const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl,rootlessPodman:rootlessControl()});
     try{ownership.reconnect(principal);const pages=await refreshPages(w);if(!pages.some(page=>page.connectionId===p.id)){let page=pages.find(page=>!page.reconnectId);if(!page){const created=await browserCdp(w,'Target.createTarget',{url:'about:blank'});ownership.opened(w,created.targetId);page=ownership.pages(w).find(page=>page.targetId===created.targetId) as any;}if(page)ownership.claim(principal,page.targetId);}}catch(e){await upstream.close();throw e;}
     const gateway=new McpGateway({principal,leases,validate,beginOperation:()=>lifecycle.beginOperation(w),audit:(a,b,c,d)=>{store.audit(a,b,c,d);},upstream:upstream as any,validateUpload:async(agent,path)=>{await privateBrowserAddress(w);auth.authorize(credential,'files:upload',w);leases.assertAutomation(agent);return prepareBrowserUpload(await files(w),{workspaceId:w,agentId:p.subject,connectionId:p.id},path,{runtime:runtime(),run:hostRun});}});
     session={owner:p.id,workspace:w,connection:await createStreamableMcp(gateway)};
@@ -244,7 +247,7 @@ export function attachViewer(server:ReturnType<typeof createHttpServer>,context:
   const ip=await privateBrowserAddress(match[1]);context.auth.authorize(p,'view',match[1]);
   const workspace=context.store.workspace(match[1]);if(!workspace||workspace.state!=='ready'||(!p.permissions.includes('*')&&!p.workspaceId&&workspace.ownerId!==p.subject))throw Error('Workspace unavailable');
   context.principals.set(p.id,p);const principal:Principal={workspaceId:match[1],subject:p.subject,connectionId:p.id,reconnectId:p.subject,permissions:p.permissions.includes('*')?[...PERMISSIONS]:p.permissions};
-  sockets.handleUpgrade(req,socket,head,ws=>{const tcp=connect({host:ip,port:5900});let connected=false;const gate=new RfbInputGate(principal,()=>context.auth.authorize(p,'view',match[1]),(_p,clipboard)=>{context.auth.authorize(p,'takeover',match[1]);context.leases.assertHuman(principal);if(clipboard)context.auth.authorize(p,'clipboard',match[1]);},data=>{if(!connected||tcp.writableLength>1024*1024)throw Error('Viewer backpressure');tcp.write(data);});
+  sockets.handleUpgrade(req,socket,head,ws=>{const tcp=privateViewerStream(ip,rootlessControl());let connected=rootlessControl();const gate=new RfbInputGate(principal,()=>context.auth.authorize(p,'view',match[1]),(_p,clipboard)=>{context.auth.authorize(p,'takeover',match[1]);context.leases.assertHuman(principal);if(clipboard)context.auth.authorize(p,'clipboard',match[1]);},data=>{if(!connected||tcp.writableLength>1024*1024)throw Error('Viewer backpressure');tcp.write(data);});
    const close=()=>{clearInterval(timer);gate.close();tcp.destroy();ws.close();};const timer=setInterval(()=>{try{context.auth.authorize(p,'view',match[1]);}catch{close();}},1000);
    tcp.on('connect',()=>{connected=true;});tcp.on('data',data=>{if(ws.bufferedAmount>1024*1024){close();return;}ws.send(data,{binary:true});});tcp.on('error',close);tcp.on('close',close);ws.on('close',()=>{clearInterval(timer);gate.close();tcp.destroy();});ws.on('error',close);ws.on('message',(data,binary)=>{try{if(!binary)throw Error();gate.push(Buffer.isBuffer(data)?data:Buffer.from(data as ArrayBuffer));}catch{close();}});
   });

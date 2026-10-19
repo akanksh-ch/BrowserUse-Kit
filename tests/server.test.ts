@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
 async function fetch(url:string,init:{method?:string;headers?:Record<string,string>;body?:string}={}){return new Promise<{status:number;json:()=>Promise<any>;headers:{get:(name:string)=>string|null}}>((resolve,reject)=>{const req=request(url,{method:init.method,headers:init.headers},res=>{const chunks:Buffer[]=[];res.on('data',c=>chunks.push(c));res.on('end',()=>resolve({status:res.statusCode!,json:async()=>JSON.parse(Buffer.concat(chunks).toString()),headers:{get(name){const v=res.headers[name];return Array.isArray(v)?v.join('; '):v??null;}}}));});req.on('error',reject);req.end(init.body);});}
-import { createHttpServer, defaultServices, privateBrowserAddress, validateUtilityIsolation, type HostRunner, type ServerServices } from '../src/server.js';
+import { createHttpServer, defaultServices, privateBrowserAddress, browserCdp, validateUtilityIsolation, type HostRunner, type ServerServices } from '../src/server.js';
 import { Store } from '../src/core.js';
 const identity={id:'credential',subject:'owner',workspaceId:'one',permissions:['view'],csrf:'secret'};
 async function fixture(run:(base:string)=>Promise<void>){
@@ -35,7 +35,17 @@ test('private routing uses inspected workspace network and rejects exposed or mi
 test('utility verification checks live IPv4/IPv6 firewall and rejects bypasses',async()=>{
  const c={State:{Running:true,Pid:123},Config:{User:'1000:1000',Labels:{'browseruse.workspace':'one'},Env:[]},HostConfig:{CapDrop:['ALL'],SecurityOpt:['no-new-privileges'],ReadonlyRootfs:true,Memory:100,PidsLimit:100,NanoCpus:100,PortBindings:{}},Mounts:[{Type:'volume',Name:'buk-one-files',Destination:'/workspace'}],NetworkSettings:{Networks:{'buk-one-utility':{IPAddress:'10.91.0.3'}}}};
  let bypass=false;const run:HostRunner=async(file,args)=>{if(file==='nsenter')return '-P OUTPUT DROP\n-A OUTPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT\n-A OUTPUT -o lo -j ACCEPT\n'+(args.includes('iptables')?'-A OUTPUT -d 10.91.0.2/32 -p tcp -m tcp --dport 3128 -j ACCEPT\n':'')+(bypass?'-A OUTPUT -j ACCEPT\n':'');return JSON.stringify([{State:{Running:true},NetworkSettings:{Networks:{'buk-one-utility':{IPAddress:'10.91.0.2'}}}}]);};
- await validateUtilityIsolation(c,'one',run);bypass=true;await assert.rejects(validateUtilityIsolation(c,'one',run));bypass=false;c.Config.User='10002:10002';await assert.rejects(validateUtilityIsolation(c,'one',run));
+ await validateUtilityIsolation(c,'one',run,false);bypass=true;await assert.rejects(validateUtilityIsolation(c,'one',run,false));bypass=false;c.Config.User='10002:10002';await assert.rejects(validateUtilityIsolation(c,'one',run,false));
+});
+test('rootless utility firewall inspection enters the owning user namespace',async()=>{
+ const c={State:{Running:true,Pid:123},Config:{User:'1000:1000',Labels:{'browseruse.workspace':'one'},Env:[]},HostConfig:{CapDrop:['ALL'],SecurityOpt:['no-new-privileges'],ReadonlyRootfs:true,Memory:100,PidsLimit:100,NanoCpus:100,PortBindings:{}},Mounts:[{Type:'volume',Name:'buk-one-files',Destination:'/workspace'}],NetworkSettings:{Networks:{'buk-one-utility':{IPAddress:'10.91.0.3'}}}};
+ const calls:string[][]=[];const run:HostRunner=async(file,args)=>{assert.ok(['docker','podman'].includes(file));calls.push(args);if(args[0]==='info')return 'true';if(args[0]==='inspect')return JSON.stringify(args[1]==='buk-one-egress'?[{State:{Running:true},NetworkSettings:{Networks:{'buk-one-utility':{IPAddress:'10.91.0.2'}}}}]:[c]);assert.deepEqual(args.slice(0,6),['unshare','nsenter','-t','123','-n',args[5]]);return '-P OUTPUT DROP\n-A OUTPUT -o lo -j ACCEPT\n'+(args.includes('iptables')?'-A OUTPUT -d 10.91.0.2/32 -p tcp -m tcp --dport 3128 -j ACCEPT\n':'');};
+ await validateUtilityIsolation(c,'one',run,true);assert.equal(calls.filter(a=>a[0]==='unshare').length,2);
+});
+test('rootless CDP dispatch uses a namespace child rather than host fetch',async()=>{
+ const c={State:{Running:true,Pid:321},Config:{Labels:{'browseruse.workspace':'one'}},HostConfig:{PortBindings:{}},NetworkSettings:{Networks:{'buk-one-browser':{IPAddress:'10.90.0.2'}}}};
+ let probed=false;const run:HostRunner=async(file,args)=>{assert.ok(['docker','podman'].includes(file));if(args[0]==='info')return 'true';if(args[0]==='inspect')return JSON.stringify([c]);assert.deepEqual(args.slice(0,2),['unshare','--rootless-netns']);assert.equal(args[2],process.execPath);assert.ok(args.includes('10.90.0.2'));assert.ok(args.includes('Target.getTargets'));probed=true;return JSON.stringify({targetInfos:[]});};
+ assert.deepEqual(await browserCdp('one','Target.getTargets',{},run,true),{targetInfos:[]});assert.ok(probed);
 });
 test('cookie mutations require CSRF; login cookie is host-only HttpOnly SameSite',async()=>fixture(async base=>{
  const headers={host:'workspace.test','content-type':'application/json'};

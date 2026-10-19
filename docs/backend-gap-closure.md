@@ -35,6 +35,21 @@ A full-suite run exposed an existing delegated-expiry clock race. A deterministi
 - `BUK_LIVE_UPLOAD=1 OCI_RUNTIME=podman node_modules/.bin/tsx --test --test-name-pattern='live OCI copy' tests/uploads.test.ts`: **PASS**, actual runtime copy readable by browser UID 1000, private temporary copy removed afterward, no shared utility mount or published ports.
 - `BUK_LIVE_UPLOAD=1 OCI_RUNTIME=podman node_modules/.bin/tsx --test --test-name-pattern='live sandboxed browser' tests/uploads.test.ts`: **FAIL / runtime blocker**, current `localhost/browseruse-browser:local` starts Xvfb/VNC but Chrome exits with `FATAL:content/browser/zygote_host/zygote_host_impl_linux.cc:251: Zygote process exited prematurely with exit code -1`. No CDP endpoint becomes available. The test uses isolated network-none, dropped capabilities, no-new-privileges, read-only root and private tmpfs; it does not add `--no-sandbox`, privileged mode, or seccomp-unconfined. Runtime owners must supply a supported sandbox-capable image/runtime configuration before full PDF selection can be proved. Test containers were explicitly removed, including failed-start diagnostics containers.
 
+## Rootless control integration
+
+Merged `origin/main` through PR #2's fixture CI. Integrated the separately owned rootless helper (`61d8b88`, cherry-picked as `5dc4e58`) without editing runtime/container files.
+
+For non-root `OCI_RUNTIME=podman`, utility firewall validation now uses the owning user namespace and still checks the complete IPv4/IPv6 default-deny rule set. Direct CDP metadata/control runs in a bounded Node child inside Podman's rootless bridge. Per-session official MCP stdio subprocesses launch there too; viewer RFB uses a supervised stdio relay, not a host-published CDP/VNC port. The authenticated public HTTP server remains in the host namespace. MCP/relay environments retain only Podman configuration variables, not control credentials.
+
+Evidence:
+
+- Two backend regressions failed first: plain `nsenter` invocation and direct host CDP fetch. Both now pass via explicit namespace dispatch.
+- `BUK_LIVE_PRIVATE_NETWORK=1 node_modules/.bin/tsx --test tests/private-network.test.ts`: **PASS**, two tests, actual backend CDP request and binary RFB roundtrip over a private rootless bridge to a synthetic container, no published ports. This is transport proof, not actual Chrome acceptance.
+- `BUK_LIVE_ROOTLESS_CONTROL=1 node_modules/.bin/tsx --test tests/rootless-control.test.ts`: **PASS**, three tests; reproduces direct-host TCP failure and plain `nsenter` EPERM, verifies helper connectivity and fail-closed refusal of empty firewall output.
+- Current `PYTHONDONTWRITEBYTECODE=1 npm run check`: **PASS**, TypeScript, 52 Node tests passed / 8 opt-in live tests skipped, 5 Python checks passed. `npm audit`: zero vulnerabilities.
+
+**Runtime blockers, not backend bypass candidates:** (1) On this host both namespaced `iptables -S OUTPUT` and `ip6tables -S OUTPUT` return empty stdout even when exit status is zero. Readiness correctly refuses this; real kernel default-deny enforcement is unverified. (2) Current browser-image startup exits in Chrome's zygote layer with the fatal message recorded above, before CDP becomes available; Xvfb and VNC do start. Namespace transport fixes cannot repair Chrome's sandbox/runtime startup. Runtime owners must resolve both under supported security settings. No public raw listener, `--no-sandbox`, host-network, privileged-mode or seccomp-unconfined workaround was added.
+
 ## Remaining integration blockers found (not claimed resolved)
 
 - End-to-end official MCP PDF selection remains runtime-blocked as above; protected staging is implemented and live OCI-copy-tested, not a claim that AT-033 passes.

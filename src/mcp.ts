@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Audit, Principal } from './leases.ts';
 import { LeaseManager } from './leases.ts';
+import { privateNetworkCommand, privateNetworkEnvironment } from './private-network.js';
 
 export const MCP_VERSION = '0.12.1';
 export const SHARED_PROFILE_WARNING = 'Agents share cookies, storage, service workers, downloads and authenticated sessions. Tabs are coordination, not security boundaries. Use separate workspaces for confidentiality.';
@@ -123,12 +124,12 @@ export class McpGateway {
   close() { return this.options.upstream.close(); }
 }
 /** No npx/latest resolution at runtime. Executable must come from the locked release image. */
-export async function connectChromeMcp(options: { executable: string; version: string; browserUrl: string }) {
+export async function connectChromeMcp(options: { executable: string; version: string; browserUrl: string; rootlessPodman?:boolean }) {
   if (options.version !== MCP_VERSION) throw new Error('Unsupported MCP capability-map version');
   const url = new URL(options.browserUrl); if (url.protocol !== 'http:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Invalid private CDP URL');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-  const transport = new StdioClientTransport({ command: options.executable, args: [`--browserUrl=${url.origin}`], env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: '/tmp' }, stderr: 'ignore' });
+  const transport = new StdioClientTransport({ ...privateNetworkCommand(options.executable,[`--browserUrl=${url.origin}`],Boolean(options.rootlessPodman)), env: privateNetworkEnvironment(Boolean(options.rootlessPodman)), stderr: 'ignore' });
   const client = new Client({ name: 'browseruse-kit', version: '1.0.0' });
   try { await client.connect(transport); validateMcpVersion(client.getServerVersion()); validateCapabilityDiscovery(await client.listTools()); return client; } catch (e) { await transport.close(); throw e; }
 }

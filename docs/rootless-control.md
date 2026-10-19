@@ -1,7 +1,8 @@
 # Rootless control namespace integration contract
 
-This is an unwired helper, not a working-v1 readiness claim. `src/server.ts` is
-owned by the backend workstream and is deliberately unchanged in this PR.
+The helper was introduced separately and is now wired by the backend workstream
+in `src/server.ts` and `src/private-network.ts`. This is not a working-v1
+readiness claim; the live kernel firewall readback blocker below remains.
 
 ## Confirmed mismatch
 
@@ -29,7 +30,7 @@ rootful Docker, host networking, privileged containers, public port publication,
 relaxed seccomp, or disabled Chrome sandboxing. It does not attach the utility to
 the browser network or give a container the host OCI socket.
 
-## Backend/runtime integration still required
+## Backend/runtime integration contract
 
 1. Replace the backend rootless branch's plain `nsenter` runner with `firewall`,
    preserving its full rule comparison and fail-closed readiness. Rootful Docker
@@ -50,10 +51,16 @@ the browser network or give a container the host OCI socket.
    is the SRS §7.5 topology. Moving the host service into Podman's shared rootless
    bridge namespace alone is not proof of a per-workspace sidecar boundary.
 
-No relay, per-workspace sidecar or server wiring is implemented here. Those
-changes require coordination with runtime/backend owners rather than an unsafe
-transparent fallback. Caddy still terminates HTTPS/WSS against loopback Node;
-raw browser/executor services must remain outside public gateway routes.
+Backend wiring now implements items 1–4 for non-root Podman: firewall inspection
+uses the helper, bounded direct CDP commands use a namespace child, pinned official
+MCP stdio workers launch inside the rootless bridge, and viewer RFB streams use
+supervised stdio relays. `private-network.ts` retains the rootful direct path and
+keeps public HTTP in the host namespace. No raw TCP listener is introduced.
+Synthetic live backend CDP and binary RFB relay tests pass; real Chrome remains
+blocked separately by its fatal zygote startup failure. Item 5's per-workspace
+sidecar topology and real firewall acceptance remain unproved. Caddy still
+terminates HTTPS/WSS against loopback Node; raw browser/executor services remain
+outside public gateway routes.
 
 ## Actual verification, 2026-10-19
 
