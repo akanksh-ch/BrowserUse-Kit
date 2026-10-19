@@ -19,6 +19,13 @@ test('salted scrypt bootstrap, login, CSRF, exact host, cookie and idle session 
 test('workspace ownership and delegated token issuance use durable authority',()=>{
  const s=new Store(':memory:');try{const a=new Auth(s),w=s.createWorkspace('owned','alice');const c=a.issue('bob',null,['view','workspace:manage']);const p=a.authenticate(c.token);assert.throws(()=>a.authorize(p,'view',w.id));p.permissions.push('*');assert.throws(()=>a.issueFor(p,w.id,['view']));const owner=a.authenticate(a.issue('alice',null,['view','workspace:manage']).token);assert.throws(()=>a.issueFor(owner,w.id,['shell']));const scoped=a.issueFor(owner,w.id,['view']);a.authorize(a.authenticate(scoped.token),'view',w.id);s.setState(w.id,'deleting','deleted');assert.throws(()=>a.authorize(a.authenticate(scoped.token),'view',w.id));}finally{s.close();}
 });
+test('delegated expiry never exceeds issuer when the clock advances during issuance',()=>{
+ const s=new Store(':memory:');const original=Date.now;try{
+  let now=original();Date.now=()=>now++;const a=new Auth(s),w=s.createWorkspace('expiry','owner');
+  const issuer=a.issue('owner',null,['*'],{ttlMs:60000});const child=a.issueFor(a.authenticate(issuer.token),w.id,['view']);
+  assert.ok(child.expiresAt<=issuer.expiresAt);
+ }finally{Date.now=original;s.close();}
+});
 test('delegated issuance throttles by durable subject across credentials and audits denials',()=>{
  const s=new Store(':memory:');try{
   let now=Date.now();const original=Date.now;Date.now=()=>now;
