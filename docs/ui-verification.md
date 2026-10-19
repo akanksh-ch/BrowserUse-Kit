@@ -48,6 +48,10 @@ Reproduced logout retaining hidden credential/timeline rows despite clearing the
 
 Browser fault injection (not runtime acceptance): delayed workspace A's inspect response, switched to B, then resolved A; B's name/ID remained selected. Injected a files HTTP 503 and verified visible diagnostic/retry guidance. Latest mobile build measured 390px document width at 390px viewport. Desktop/browser functional checks and earlier screenshot checks remain valid; CSS was unchanged. `npm run check`, build, and diff whitespace checks passed.
 
+## Logout follow-up PR
+
+The initial logout fix was pushed after #3 had merged; it is now cherry-picked onto a fresh branch from current main in follow-up PR #6, not treated as integrated through the closed PR. Reproduced another late-response defect in the runnable handler harness: a successful create response after logout selected its workspace (`1 !== 0`). Added epoch checks around create response/refresh; the same check now passes. Added explicit HTTP 401 cleanup and late credential-list response assertions; neither repopulates cleared secrets. Full local check/build passes on the follow-up branch. Hosted checks were not reported for #6 at the time inspected; no hosted CI success is claimed.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.
