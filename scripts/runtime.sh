@@ -42,7 +42,7 @@ start)
   for net in browser utility; do "$OCI" network connect --alias egress "$p-$net" "$p-egress"; done
   proxy_ip() { "$OCI" inspect -f "{{(index .NetworkSettings.Networks \"$p-$1\").IPAddress}}" "$p-egress"; }
   bproxy=$(proxy_ip browser); uproxy=$(proxy_ip utility)
-  "$OCI" run -d --name "$p-browser" --label "browseruse.workspace=$id" --network "$p-browser" --add-host "egress:$bproxy" --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256m --tmpfs /home/browser:rw,nosuid,nodev,mode=1777,size=64m --shm-size 256m --cap-drop ALL --security-opt no-new-privileges --cpus 2 --memory 3g --pids-limit 512 -v "$profile:/profile" -v "$files:/workspace" browseruse-browser:local >/dev/null
+  "$OCI" run -d --name "$p-browser" --label "browseruse.workspace=$id" --network "$p-browser" --add-host "egress:$bproxy" --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256m --tmpfs /home/browser:rw,nosuid,nodev,mode=1777,size=64m --shm-size 256m --cap-drop ALL --cap-add SYS_CHROOT --security-opt no-new-privileges --health-cmd /usr/local/bin/healthcheck.sh --health-interval 5s --health-timeout 3s --health-start-period 30s --cpus 2 --memory 3g --pids-limit 512 -v "$profile:/profile" -v "$files:/workspace" browseruse-browser:local >/dev/null
   "$OCI" run -d --name "$p-utility" --label "browseruse.workspace=$id" --network "$p-utility" --add-host "egress:$uproxy" --read-only --tmpfs /tmp:rw,nosuid,nodev,size=128m --cap-drop ALL --security-opt no-new-privileges --cpus 1 --memory 512m --pids-limit 128 -v "$files:/workspace" browseruse-utility:local >/dev/null
   for role in browser utility; do
     pid=$("$OCI" inspect -f '{{.State.Pid}}' "$p-$role")

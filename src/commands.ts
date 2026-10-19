@@ -59,6 +59,7 @@ export function validateUtilityIsolation(c: Record<string, any>, options: Utilit
   for (const env of c.Config.Env ?? []) {
     const split = env.indexOf('='); const key = env.slice(0, split); const value = env.slice(split + 1);
     if (key === 'container' && value === 'podman' && options.runtime === 'podman') continue;
+    if (key === 'HOSTNAME' && value === c.Config.Hostname) continue;
     if (split < 1 || !allowedEnv.has(key)) throw new Error('unapproved utility environment');
     if (/proxy/i.test(key)) {
       const url = new URL(value);

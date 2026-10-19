@@ -1,16 +1,16 @@
 [
      {
-          "Id": "db3b307b7b98a66d36bee6e895e428075c5c2d5bce06978af0e33701b2606d94",
-          "Digest": "sha256:e72846ed441a93bde6bf7548faa1d16023c4578fc2b5dfa0bbda44b8037f8bc2",
+          "Id": "394107c04dd8e5317d28f8cb4c3c408ebc375bd12853896ff1e09de66a140074",
+          "Digest": "sha256:90f572d29600f25c61ca9e9636ca0ad8ea531cbc471afb710fe48e10acf29dbf",
           "RepoTags": [
                "localhost/browseruse-browser:local"
           ],
           "RepoDigests": [
-               "localhost/browseruse-browser@sha256:e72846ed441a93bde6bf7548faa1d16023c4578fc2b5dfa0bbda44b8037f8bc2"
+               "localhost/browseruse-browser@sha256:90f572d29600f25c61ca9e9636ca0ad8ea531cbc471afb710fe48e10acf29dbf"
           ],
-          "Parent": "6736b7b25bb424e1d9992d6335b987cca38461001d7e670cca566a777073d25a",
+          "Parent": "552b5dbd62bd1404e2b4b8ace17f1c43e677d0c4bb0daa3ac5ab08f514040a10",
           "Comment": "debuerreotype 0.17",
-          "Created": "2026-10-18T23:19:01.220040832Z",
+          "Created": "2026-10-19T20:02:52.702270451Z",
           "Config": {
                "User": "1000:1000",
                "Env": [
@@ -29,14 +29,14 @@
           "Author": "",
           "Architecture": "amd64",
           "Os": "linux",
-          "Size": 1244906781,
-          "VirtualSize": 1244906781,
+          "Size": 1244907804,
+          "VirtualSize": 1244907804,
           "GraphDriver": {
                "Name": "overlay",
                "Data": {
-                    "LowerDir": "/home/akanksh/.local/share/containers/storage/overlay/31e64da892d3278da0963856ebdd176901ec6d0b1be062fdeeecc895881a7644/diff:/home/akanksh/.local/share/containers/storage/overlay/2b232b72660cce032e639d0dc0856878d24c36d780157c32a84262532e57cbfd/diff:/home/akanksh/.local/share/containers/storage/overlay/e36503edb4196f74caf01f0a93609fe5e0e7ea4d1be68e7990040535972f5cb3/diff:/home/akanksh/.local/share/containers/storage/overlay/795931d70ab3b361e7e4557db00c03084cf40e9de120c426af45e2e70507fd22/diff:/home/akanksh/.local/share/containers/storage/overlay/e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7/diff",
-                    "UpperDir": "/home/akanksh/.local/share/containers/storage/overlay/4aa817fc790f7f5896ca53b24b9f87fdb51673a96756927943fbb7eb7bef7efd/diff",
-                    "WorkDir": "/home/akanksh/.local/share/containers/storage/overlay/4aa817fc790f7f5896ca53b24b9f87fdb51673a96756927943fbb7eb7bef7efd/work"
+                    "LowerDir": "/home/akanksh/.local/share/containers/storage/overlay/2c6d3c55ff3cfc65bae3d784318788999adf92af7c28dca1eaa95d552d8ba233/diff:/home/akanksh/.local/share/containers/storage/overlay/2b232b72660cce032e639d0dc0856878d24c36d780157c32a84262532e57cbfd/diff:/home/akanksh/.local/share/containers/storage/overlay/e36503edb4196f74caf01f0a93609fe5e0e7ea4d1be68e7990040535972f5cb3/diff:/home/akanksh/.local/share/containers/storage/overlay/795931d70ab3b361e7e4557db00c03084cf40e9de120c426af45e2e70507fd22/diff:/home/akanksh/.local/share/containers/storage/overlay/e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7/diff",
+                    "UpperDir": "/home/akanksh/.local/share/containers/storage/overlay/5b9c062f08ebf2b82e913d113690ad5c26a26aa569b00f2b5f88abfae24d7dc4/diff",
+                    "WorkDir": "/home/akanksh/.local/share/containers/storage/overlay/5b9c062f08ebf2b82e913d113690ad5c26a26aa569b00f2b5f88abfae24d7dc4/work"
                }
           },
           "RootFS": {
@@ -46,8 +46,8 @@
                     "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
                     "sha256:cf6a0ea5192bce864290e19551c0aa2c189bee5b7b8e656db04cc1ba3f704845",
                     "sha256:6570aa8b02dcc0370ee3e39f27435c3211fbcddf76e8bce089bbeba09a7ff973",
-                    "sha256:04db72e63d0869325c068f735667c885ae9ee12c2ff57ef38b04c15c8b82eac5",
-                    "sha256:04db72e63d0869325c068f735667c885ae9ee12c2ff57ef38b04c15c8b82eac5"
+                    "sha256:80bb99b331970f106315b9176e71717260ced32bf68d867dcf297d9563e15cd7",
+                    "sha256:80bb99b331970f106315b9176e71717260ced32bf68d867dcf297d9563e15cd7"
                ]
           },
           "Labels": {
@@ -56,7 +56,7 @@
           "Annotations": {
                "org.opencontainers.image.base.digest": "sha256:a4672c0cb26fbdde88e38fa2dfb6c681942306680e41e4378b28770b6e79ee91",
                "org.opencontainers.image.base.name": "docker.io/library/debian:bookworm-slim",
-               "org.opencontainers.image.created": "2026-10-18T23:19:01.220040832Z"
+               "org.opencontainers.image.created": "2026-10-19T20:02:52.702270451Z"
           },
           "ManifestType": "application/vnd.oci.image.manifest.v1+json",
           "User": "1000:1000",
@@ -85,30 +85,30 @@
                     "created_by": "/bin/sh -c #(nop) COPY file:e187f56ed8d82b8ecc6a77cbbf65b241f3a4d280957358b5d4c82e9513fb5bac in /etc/opt/chrome/policies/managed/browseruse.json      "
                },
                {
-                    "created": "2026-10-18T23:19:00.520907819Z",
-                    "created_by": "/bin/sh -c #(nop) COPY multi:a575f1212a104f9e3291491fc605809f37d24d67891dbf6e3b79f724cd0a0e51 in /usr/local/bin/      "
+                    "created": "2026-10-19T20:02:51.849264513Z",
+                    "created_by": "/bin/sh -c #(nop) COPY multi:b3e841310f292276ec52d7742dc01b3623cb04dbf3da3733e5f41b5afd3bb1f2 in /usr/local/bin/      "
                },
                {
-                    "created": "2026-10-18T23:19:00.900016347Z",
+                    "created": "2026-10-19T20:02:52.251046991Z",
                     "created_by": "|1 CHROME_VERSION=155.0.8059.84-1 /bin/sh -c chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh"
                },
                {
-                    "created": "2026-10-18T23:19:01.014304366Z",
+                    "created": "2026-10-19T20:02:52.391239703Z",
                     "created_by": "/bin/sh -c #(nop) USER 1000:1000",
                     "empty_layer": true
                },
                {
-                    "created": "2026-10-18T23:19:01.076263592Z",
+                    "created": "2026-10-19T20:02:52.495567593Z",
                     "created_by": "/bin/sh -c #(nop) ENV DISPLAY=:99 HOME=/home/browser",
                     "empty_layer": true
                },
                {
-                    "created": "2026-10-18T23:19:01.151118015Z",
+                    "created": "2026-10-19T20:02:52.59903042Z",
                     "created_by": "/bin/sh -c #(nop) HEALTHCHECK --interval=5s --timeout=3s --start-period=30s CMD [\"/usr/local/bin/healthcheck.sh\"]",
                     "empty_layer": true
                },
                {
-                    "created": "2026-10-18T23:19:01.220267679Z",
+                    "created": "2026-10-19T20:02:52.702574194Z",
                     "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"/usr/local/bin/entrypoint.sh\"]",
                     "empty_layer": true
                }
@@ -121,8 +121,8 @@
           "Id": "063e8368be40acfb51146cef0552a3083ecc9a791558d1738a7c6bef64211142",
           "Digest": "sha256:19280d545e7985699fd5ff43a024edae8f5670bfa11b587564aff5345d61a70d",
           "RepoTags": [
-               "localhost/buk-utility-files-test:latest",
-               "localhost/browseruse-utility:local"
+               "localhost/browseruse-utility:local",
+               "localhost/buk-utility-files-test:latest"
           ],
           "RepoDigests": [
                "localhost/browseruse-utility@sha256:19280d545e7985699fd5ff43a024edae8f5670bfa11b587564aff5345d61a70d",
@@ -223,8 +223,8 @@
                }
           ],
           "NamesHistory": [
-               "localhost/browseruse-utility:local",
-               "localhost/buk-utility-files-test:latest"
+               "localhost/buk-utility-files-test:latest",
+               "localhost/browseruse-utility:local"
           ]
      },
      {

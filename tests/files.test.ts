@@ -184,7 +184,7 @@ test('real OCI utility commands: non-root, bounded output, timeout, cancellation
 
 
 test('isolation helper denies browser networks, profile/socket mounts, secrets and unsafe network topology', () => {
-  const c: any = { State: { Running: true }, Name: '/buk-w1-utility', Config: { User: '1000:1000', Env: ['PATH=/usr/bin'], Labels: { 'browseruse.workspace': 'w1' } },
+  const c: any = { State: { Running: true }, Name: '/buk-w1-utility', Config: { User: '1000:1000', Hostname: 'runtime-host', Env: ['PATH=/usr/bin', 'HOSTNAME=runtime-host'], Labels: { 'browseruse.workspace': 'w1' } },
     HostConfig: { NetworkMode: 'buk-w1-utility', PidMode: 'private', IpcMode: 'private', CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'],
       ReadonlyRootfs: true, Memory: 100, PidsLimit: 64, NanoCpus: 100, Tmpfs: { '/tmp': 'rw,nosuid,nodev,size=128m' } },
     Mounts: [{ Type: 'volume', Name: 'buk-w1-files', Destination: '/workspace', RW: true }],
@@ -198,6 +198,7 @@ test('isolation helper denies browser networks, profile/socket mounts, secrets a
     (x: any) => { x.Mounts.push({ Type: 'volume', Name: 'buk-w1-profile', Destination: '/profile' }); },
     (x: any) => { x.Mounts[0] = { Type: 'bind', Source: '/var/run/docker.sock', Destination: '/workspace' }; },
     (x: any) => { x.Config.Env.push('CONTROL_TOKEN=secret'); },
+    (x: any) => { x.Config.Env[1] = 'HOSTNAME=forged'; },
     (x: any) => { x.HostConfig.Tmpfs['/workspace/profile'] = 'rw'; },
     (x: any) => { x.Config.User = '0:0'; },
     (x: any) => { x.Config.Labels['browseruse.workspace'] = 'other'; },
