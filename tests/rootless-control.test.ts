@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
-import { RootlessPodmanControl } from '../src/rootless-control.ts';
+import { RootlessPodmanControl, FIREWALL_PIPE_RELAY } from '../src/rootless-control.ts';
 
 const inspection = () => ({ State: { Running: true, Pid: 1234 }, Config: { Labels: { 'browseruse.workspace': 'one' } },
   HostConfig: { Privileged: false, NetworkMode: 'buk-one-browser', PortBindings: {} },
@@ -19,7 +19,7 @@ test('rootless control uses owning user namespace and separate rootless bridge n
     return args.includes('iptables') ? '-P OUTPUT DROP\n' : 'probe-result';
   });
   assert.equal(await control.firewall('one', 'browser', 'iptables'), '-P OUTPUT DROP\n');
-  assert.deepEqual(calls.at(-1), ['podman', ['unshare', 'nsenter', '-t', '1234', '-n', 'iptables', '-S', 'OUTPUT']]);
+  assert.deepEqual(calls.at(-1), ['podman', ['unshare', 'python3', '-c', FIREWALL_PIPE_RELAY, 'nsenter', '-t', '1234', '-n', 'iptables', '-S', 'OUTPUT']]);
   assert.equal(await control.probe('one', address => ({ file: 'trusted-probe', args: [address, ';not-a-shell'] })), 'probe-result');
   assert.deepEqual(calls.at(-1), ['podman', ['unshare', '--rootless-netns', 'trusted-probe', '10.89.0.2', ';not-a-shell']]);
   c.HostConfig.PortBindings = { '9223/tcp': [] } as any;
@@ -53,6 +53,14 @@ test('namespace helper refuses unsafe identities, rootful fallback and malformed
   await assert.rejects(control.firewall('one', 'browser', 'iptables'), /Firewall rules unavailable/);
 });
 
+test('anonymous-pipe firewall relay retains stdout, stderr and failure status', async () => {
+  const execute = promisify(execFile);
+  const ok = await execute('python3', ['-c', FIREWALL_PIPE_RELAY, 'python3', '-c', 'import sys;print("rules");sys.stderr.write("diagnostic\\n")']);
+  assert.equal(ok.stdout, 'rules\n'); assert.equal(ok.stderr, 'diagnostic\n');
+  await assert.rejects(execute('python3', ['-c', FIREWALL_PIPE_RELAY, 'python3', '-c', 'import sys;sys.stderr.write("denied");sys.exit(7)']), (error: any) => error.code === 7 && error.stderr === 'denied');
+  await assert.rejects(execute('python3', ['-c', FIREWALL_PIPE_RELAY, 'python3', '-c', 'print("x"*262145)']), (error: any) => error.code === 125 && error.stdout === '');
+});
+
 test('live rootless service identity: private bridge HTTP/RFB-shaped probe and namespace firewall read', {
   skip: process.env.BUK_LIVE_ROOTLESS_CONTROL !== '1', timeout: 40_000,
 }, async t => {
@@ -79,17 +87,23 @@ test('live rootless service identity: private bridge HTTP/RFB-shaped probe and n
       t.diagnostic('Direct host route reachable on this configuration; no routing failure inferred.');
     } catch { t.diagnostic('Direct host TCP probe failed; rootless bridge probe below must succeed.'); }
     await assert.rejects(run('nsenter', ['-t', pid, '-n', 'iptables', '-S', 'OUTPUT']), /Operation not permitted/);
+    // Mirror the runtime's policy in this fixture only, then verify actual readback.
+    for (const family of ['iptables', 'ip6tables']) {
+      const prefix = ['unshare', 'nsenter', '-t', pid, '-n', family];
+      await run('podman', [...prefix, '-P', 'OUTPUT', 'DROP']);
+      await run('podman', [...prefix, '-A', 'OUTPUT', '-m', 'conntrack', '--ctstate', 'ESTABLISHED,RELATED', '-j', 'ACCEPT']);
+      await run('podman', [...prefix, '-A', 'OUTPUT', '-o', 'lo', '-j', 'ACCEPT']);
+    }
     const control = new RootlessPodmanControl(run);
     const probe = 'import socket,sys,time,http.client\nip=sys.argv[1]\nfor i in range(40):\n try:\n  c=http.client.HTTPConnection(ip,18888,timeout=1);c.request("GET","/");assert c.getresponse().status==501;c.close()\n  s=socket.create_connection((ip,18889),1);assert s.recv(12)==b"RFB 003.008\\n";s.close();print("private-control-ok");break\n except OSError:\n  if i==39: raise\n  time.sleep(.1)';
     assert.equal((await control.probe(workspace, address => ({ file: 'python3', args: ['-c', probe, address] }))).trim(), 'private-control-ok');
     for (const family of ['iptables', 'ip6tables'] as const) {
       const rules = await run('podman', ['unshare', 'nsenter', '-t', pid, '-n', family, '-S', 'OUTPUT']);
-      if (!rules.trim()) {
-        await assert.rejects(control.firewall(workspace, 'browser', family), /Firewall rules unavailable/);
-        t.diagnostic(`${family} returned empty rules despite exit 0; helper failed closed. Real firewall listing NOT VERIFIED.`);
-      } else {
-        assert.match(await control.firewall(workspace, 'browser', family), /-P OUTPUT/);
-      }
+      if (!rules.trim()) t.diagnostic(`${family} direct capture is empty; validating anonymous-pipe relay instead.`);
+      const actual = await control.firewall(workspace, 'browser', family);
+      assert.match(actual, /-P OUTPUT DROP/);
+      assert.match(actual, /--ctstate (ESTABLISHED,RELATED|RELATED,ESTABLISHED) -j ACCEPT/);
+      assert.match(actual, /-o lo -j ACCEPT/);
     }
     assert.equal(process.getuid!(), uid, 'Host service identity must not change');
   } finally {

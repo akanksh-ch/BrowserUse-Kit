@@ -2,6 +2,19 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { isIP } from 'node:net';
 
+// Fedora's iptables_t SELinux transition can hide writes to inherited Node
+// socketpair stdio. A real anonymous pipe captures output without disabling MAC.
+// Only the fixed firewall-read command below uses this trusted relay.
+export const FIREWALL_PIPE_RELAY = `import subprocess,sys
+try:
+ p=subprocess.run(sys.argv[1:],capture_output=True,timeout=8)
+ if len(p.stdout)+len(p.stderr)>262144: sys.exit(125)
+ sys.stdout.buffer.write(p.stdout);sys.stderr.buffer.write(p.stderr)
+ sys.exit(p.returncode)
+except subprocess.TimeoutExpired:
+ sys.stderr.write('Firewall read timed out\\n');sys.exit(124)
+`;
+
 const exec = promisify(execFile);
 export type NamespaceRunner = (file: string, args: string[]) => Promise<string>;
 const boundedRun: NamespaceRunner = async (file, args) => String((await exec(file, args, {
@@ -39,7 +52,7 @@ export class RootlessPodmanControl {
   async firewall(workspace: string, role: 'browser' | 'utility', family: 'iptables' | 'ip6tables') {
     if (family !== 'iptables' && family !== 'ip6tables') throw Error('Invalid firewall family');
     const { pid } = await this.inspect(workspace, role);
-    const rules = await this.run('podman', ['unshare', 'nsenter', '-t', pid, '-n', family, '-S', 'OUTPUT']);
+    const rules = await this.run('podman', ['unshare', 'python3', '-c', FIREWALL_PIPE_RELAY, 'nsenter', '-t', pid, '-n', family, '-S', 'OUTPUT']);
     if (!rules.trim() || !/^-P OUTPUT (ACCEPT|DROP)$/m.test(rules)) throw Error('Firewall rules unavailable; refuse readiness');
     return rules;
   }
