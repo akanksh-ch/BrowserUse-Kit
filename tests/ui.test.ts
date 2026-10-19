@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
-test('operator state never invents readiness or timestamps; lifecycle events filter as system', () => {
+test('operator state never invents readiness or timestamps; lifecycle events filter as system', async () => {
   const nodes = new Map<string, any>();
   const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', children: [] as any[], addEventListener() {}, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
   const document = { getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }, createElement: node, querySelectorAll: () => [] };
   const source = readFileSync(new URL('../frontend/controller.js', import.meta.url), 'utf8').replace(/run\(async \(\) => \{ try \{ const me =[\s\S]*$/, '');
-  runInNewContext(source + `
+  await runInNewContext(source + `(async () => {
     selected = { id: 'test', state: 'starting', desiredState: 'ready' };
     renderWorkspace();
     assert.equal($('workspace-state').textContent, 'Observed: starting · Desired: ready');
@@ -27,5 +27,10 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     $('event-filter').value = 'system'; renderEvents();
     assert.equal($('events').children[0].children[0].textContent, 'Time not reported');
     assert.equal($('events').children[0].children[1].textContent, 'system');
-  `, { document, setInterval() {}, assert });
+    human = true; rfb = {viewOnly:false};
+    await assert.rejects(lease('human', 'release'), /inspect runtime health/);
+    assert.equal(human, false);
+    assert.equal(rfb.viewOnly, true);
+    assert.equal($('control-state').textContent, 'View only · release requested');
+  })()`, { document, setInterval() {}, assert, Headers, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
 });

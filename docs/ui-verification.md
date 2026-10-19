@@ -22,6 +22,14 @@ Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Pr
 - Merged `origin/main` including deployment PR #1 before final typecheck, native tests, and build.
 - Deployment checks: `python3 tests/deployment.test.py -v` passed the defaults test; live TLS test skipped because Caddy was unavailable. An initial unittest-discovery invocation matched no tests; the direct invocation above is authoritative.
 
+## Hosted CI and production serving follow-up
+
+- Hosted workflow now runs `npm run build` after `npm run check`; check already typechecks both TypeScript projects. Deployment fixture/TLS steps are unchanged.
+- Re-ran `npm run check` (native suite plus five offline runtime checks) and production build successfully.
+- Fetched production HTML through the real backend on loopback, then fetched its JS/CSS references and the dynamically referenced controller chunk. All three current hashed assets returned 200 with matching content types; no stale asset reference observed.
+- Runtime-contract inspection found release failures could leave the client viewer interactive until renewal failed. Release now disables local pointer/keyboard input before the network request; a regression test forces HTTP 503 and checks view-only remains enforced. Server input gating remains authoritative.
+- 403/409/5xx UI errors now include permission/session, contention, or runtime-diagnostic recovery guidance respectively. This does not turn failures into readiness.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.

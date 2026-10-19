@@ -22,6 +22,9 @@ jobs:
       # Native/unit and offline runtime checks only. Opt-in OCI/browser tests
       # stay skipped; this job is not SRS acceptance or Docker/Podman coverage.
       - run: npm run check
+      # check includes both backend and frontend TypeScript projects.
+      - name: Build production operator console
+        run: npm run build
       - name: Install gateway test dependencies
         run: |
           sudo apt-get update
