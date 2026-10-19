@@ -94,11 +94,11 @@ export async function connectPageOwnership(options: { workspaceId: string; brows
   };
 }
 export interface Upstream { listTools(): Promise<{ tools: Array<{ name: string; [key: string]: unknown }> }>; callTool(args: { name: string; arguments: Record<string, unknown> }, ...rest: any[]): Promise<any>; close(): Promise<void> }
-export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string>; }
+export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string>; beginOperation?: () => () => void; }
 export class McpGateway {
   constructor(private options: GatewayOptions) {}
   private capability(name: string) { const o = this.options; o.validate(o.principal); const c = CAPABILITIES[name]; if (!Object.hasOwn(CAPABILITIES, name) || !c || !o.principal.permissions.includes(c.permission)) { o.audit(o.principal.workspaceId, 'mcp.denied', o.principal.connectionId, 'unclassified or unauthorized tool'); throw new Error('Tool denied'); } return c; }
-  async listTools() { this.options.validate(this.options.principal); const result = await this.options.upstream.listTools(); return { tools: result.tools.filter(t => Object.hasOwn(CAPABILITIES, t.name) && this.options.principal.permissions.includes(CAPABILITIES[t.name]!.permission)) }; }
+  async listTools() { this.options.validate(this.options.principal); const end=this.options.beginOperation?.(); try { const result = await this.options.upstream.listTools(); return { tools: result.tools.filter(t => Object.hasOwn(CAPABILITIES, t.name) && this.options.principal.permissions.includes(CAPABILITIES[t.name]!.permission)) }; } finally { end?.(); } }
   async callTool(name: string, args: Record<string, unknown> = {}) {
     const o = this.options; const c = this.capability(name); const controller = new AbortController(); let settled!: () => void; const done = new Promise<void>(resolve => { settled = resolve; });
     const end = c.mutation ? o.leases.beginMutation(o.principal, async () => {
@@ -106,7 +106,9 @@ export class McpGateway {
       // Never grant human input on that acknowledgement alone. Operator can retry once settled.
       controller.abort(); await done; throw new Error('Browser mutation cancellation cannot prove quiescence; retry takeover');
     }) : () => {};
+    let endOperation: (() => void) | undefined;
     try {
+      endOperation=o.beginOperation?.();
       o.audit(o.principal.workspaceId, 'mcp.started', o.principal.connectionId, name);
       const safe = { ...args };
       if (name === 'upload_file') { if (typeof safe.filePath !== 'string') throw new Error('filePath required'); safe.filePath = await o.validateUpload(o.principal, safe.filePath); }
@@ -116,7 +118,7 @@ export class McpGateway {
       const result = await o.upstream.callTool({ name, arguments: safe }, undefined, { signal: controller.signal });
       o.validate(o.principal); o.audit(o.principal.workspaceId, 'mcp.completed', o.principal.connectionId, name); return result;
     } catch (error) { o.audit(o.principal.workspaceId, 'mcp.failed', o.principal.connectionId, name); throw error; }
-    finally { end(); settled(); }
+    finally { end(); endOperation?.(); settled(); }
   }
   close() { return this.options.upstream.close(); }
 }

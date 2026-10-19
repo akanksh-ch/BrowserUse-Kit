@@ -54,6 +54,17 @@ test('MCP unknown/script tools denied; leases and approved upload required; audi
   await gateway.callTool('click'); assert.equal(calls, 1); auditFailed = true; await assert.rejects(gateway.callTool('click')); assert.equal(calls, 1);
 });
 
+test('MCP lifecycle admission holds read calls and discovery until settlement and rejects before dispatch', async () => {
+  const p=principal();const leases=new LeaseManager(()=>{},()=>{});let active=0,admit=true,calls=0;
+  let release!:()=>void;const wait=new Promise<void>(r=>{release=r;});
+  const gateway=new McpGateway({principal:p,leases,audit:()=>{},validate:()=>{},validateUpload:async(_,path)=>path,
+    beginOperation:()=>{if(!admit)throw Error('stopping');active++;return ()=>{active--;};},
+    upstream:{listTools:async()=>{calls++;await wait;return {tools:[]};},callTool:async()=>{calls++;await wait;throw Error('upstream failed');},close:async()=>{}}});
+  const discovery=gateway.listTools();const call=gateway.callTool('list_pages');const failed=assert.rejects(call,/upstream failed/);
+  assert.equal(active,2);release();await discovery;await failed;assert.equal(active,0);
+  admit=false;await assert.rejects(gateway.listTools(),/stopping/);await assert.rejects(gateway.callTool('list_pages'),/stopping/);assert.equal(calls,2);
+});
+
 test('ownership durable reconnect, expiry, conflicts and generation protect reused targets', () => {
   let data: any[] = []; let time = 0;
   const pages = new PageOwnership(() => {}, () => structuredClone(data), (_, rows) => { data = structuredClone(rows); }, () => time);

@@ -13,11 +13,17 @@ Public delegation now has a durable subject-wide budget: 20 issues per 60-second
 
 Regression was observed failing before implementation (`Missing expected exception`); `npm run check` subsequently passed: TypeScript, 39 passing Node tests, 3 explicitly skipped runtime tests, and 5 Python runtime source checks. The skipped tests cover live OCI commands, live headful MCP, and live x11vnc. These source/unit checks are not proof of live runtime acceptance.
 
+## MCP lifecycle admission (FR-MCP-007, lifecycle §9.3–9.4)
+
+Wired the existing lifecycle operation gate into every gateway tool call (including reads) and tool discovery. Requests hold activity until settlement and release on upstream errors. Once shutdown or reconciliation closes admission, no new upstream request dispatches. The gate does not claim an SDK abort proves browser-side quiescence; lifecycle shutdown waits for settlement or fails at its existing bounded drain deadline.
+
+Regression was observed failing first (`active 0 !== 2`). Final `npm run check`: TypeScript passed, 40 Node tests passed / 3 live tests skipped, and 5 Python checks passed. No additional public API changes.
+
 ## Remaining integration blockers found (not claimed resolved)
 
 - MCP browser upload is deliberately rejected in composition (`Upload mount routing unavailable`); capability uses `files:upload`, which is not issuable in `PERMISSIONS`. Fix permission and browser-visible mount routing together, with a live PDF test; do not bypass validation by forwarding host paths.
 - Composition polls page targets rather than wiring the existing `connectPageOwnership()` observer, so popup/close/reused-target behavior needs live integration.
-- Composition does not route MCP activity through lifecycle operation tracking; stop/idling versus in-flight MCP needs integration coverage.
+- Live stop/idling versus in-flight official MCP still needs runtime acceptance evidence, beyond the newly wired and regression-tested lifecycle gate.
 - Event API returns cursor-paged records, but has no retention-gap protocol or streaming delivery.
 - Optional screenshots are honestly reported disabled; profile export and browser-download attribution remain absent.
 

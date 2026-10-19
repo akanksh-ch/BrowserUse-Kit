@@ -193,7 +193,7 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
    if(!session){if(sid||req.method!=='POST')throw Error('Session not found');const browserUrl=`http://${await privateBrowserAddress(w)}:9223`;
     const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl});
     try{ownership.reconnect(principal);const pages=await refreshPages(w);if(!pages.some(page=>page.connectionId===p.id)){let page=pages.find(page=>!page.reconnectId);if(!page){const created=await browserCdp(w,'Target.createTarget',{url:'about:blank'});ownership.opened(w,created.targetId);page=ownership.pages(w).find(page=>page.targetId===created.targetId) as any;}if(page)ownership.claim(principal,page.targetId);}}catch(e){await upstream.close();throw e;}
-    const gateway=new McpGateway({principal,leases,validate,audit:(a,b,c,d)=>{store.audit(a,b,c,d);},upstream:upstream as any,validateUpload:async()=>{throw Error('Upload mount routing unavailable');}});
+    const gateway=new McpGateway({principal,leases,validate,beginOperation:()=>lifecycle.beginOperation(w),audit:(a,b,c,d)=>{store.audit(a,b,c,d);},upstream:upstream as any,validateUpload:async()=>{throw Error('Upload mount routing unavailable');}});
     session={owner:p.id,workspace:w,connection:await createStreamableMcp(gateway)};
    }
    await session.connection.transport.handleRequest(req,res,req.body);const id=session.connection.transport.sessionId;if(id)sessions.set(id,session);if(req.method==='DELETE'&&id){await session.connection.close();sessions.delete(id);}return;
