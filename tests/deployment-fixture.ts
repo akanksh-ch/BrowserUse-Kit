@@ -53,9 +53,11 @@ try {
   const file = join(directory, 'Caddyfile');
   await writeFile(file, '{\n admin off\n auto_https off\n}\n' + config);
   caddy = spawn(process.env.CADDY ?? 'caddy', ['run', '--config', file, '--adapter', 'caddyfile'], { stdio: ['ignore', 'ignore', 'pipe'] });
-  let logs = ''; caddy.stderr!.on('data', data => { logs = (logs + data).slice(-8192); });
+  let logs = ''; let startupError = false;
+  caddy.on('error', () => { startupError = true; });
+  caddy.stderr!.on('data', data => { logs = (logs + data).slice(-8192); });
   for (let i = 0; ; i++) {
-    if (caddy.exitCode !== null || i > 100) throw Error(`Fixture gateway startup failed: ${logs}`);
+    if (startupError || caddy.exitCode !== null || i > 100) throw Error(`Fixture gateway startup failed: ${logs}`);
     try { const socket = await import('node:net').then(n => n.connect(port, '127.0.0.1')); await once(socket, 'connect'); socket.destroy(); break; }
     catch { await new Promise(r => setTimeout(r, 25)); }
   }
@@ -66,7 +68,12 @@ try {
   if (code !== 0) throw Error('Synthetic gateway harness failed');
   console.log('Synthetic MCP/SSE and RFB-banner WSS fixture passed; NOT live Chrome/VNC/auth acceptance.');
 } finally {
-  if (caddy && caddy.exitCode === null) { caddy.kill(); await once(caddy, 'exit'); }
+  if (caddy?.pid && caddy.exitCode === null && caddy.signalCode === null) {
+    const exit = once(caddy, 'exit');
+    caddy.kill();
+    const timer = setTimeout(() => caddy!.kill('SIGKILL'), 5000);
+    try { await exit; } finally { clearTimeout(timer); }
+  }
   for (const ws of wss.clients) ws.terminate(); wss.close();
   for (const session of sessions.values()) await session.server.close();
   backend.closeAllConnections(); await new Promise<void>(r => backend.close(() => r()));
