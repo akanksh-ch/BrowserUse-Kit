@@ -34,6 +34,12 @@ Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Pr
 
 Merged deployment PR #2 from main without removing either the TLS fixture step or frontend build step. Added runnable VM behavioral checks (no source-regex assertions): delay automation acquisition, switch A → B, resolve A's lease, assert no mutation is sent and no stale lease is installed; then assert a new mutation uses B. A delayed workspace-list response is also discarded after session epoch changes. Command, upload, and delete paths now capture inputs and use the guarded automation helper. Viewer bootstrap, token listing/issuance, and workspace switching discard stale continuations. `npm run check` and build pass after these changes.
 
+## Backend PR #4 contract check
+
+Inspected `origin/fix/v1-backend` without merging its pending changes. Command service consumes `{command,cwd}`; page transfer consumes `{owner}` containing a connection ID (or null to clear); renewal uses PUT `{id}` and release DELETE. Credential list returns numeric `expiresAt` and `revoked`. These match the frontend; no further implementation mismatch found.
+
+Expanded the runnable controller harness to execute actual registered form/button handlers: command inputs remain their submitted values during delayed acquisition; upload/delete keep the original directory if the path input changes while awaiting a lease; switching workspaces during upload sends no mutation. It also verifies page-transfer owner payload and renewal/release methods/IDs, alongside credential-expiry assertions. `npm run check` and production build pass. These are deterministic client checks, not claims of real runtime execution.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.

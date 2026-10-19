@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 test('operator state never invents readiness or timestamps; lifecycle events filter as system', async () => {
   const nodes = new Map<string, any>();
-  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', children: [] as any[], addEventListener() {}, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
+  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', children: [] as any[], listeners: {} as Record<string, Function>, addEventListener(type: string, handler: Function) { this.listeners[type] = handler; }, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
   const document = { getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }, createElement: node, querySelectorAll: () => [] };
   const source = readFileSync(new URL('../frontend/controller.js', import.meta.url), 'utf8').replace(/run\(async \(\) => \{ try \{ const me =[\s\S]*$/, '');
   await runInNewContext(source + `(async () => {
@@ -50,5 +50,64 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     workspaces = []; const refreshing = refresh(); epoch++;
     resolveList([{id:'stale-workspace'}]); await refreshing;
     assert.equal(workspaces.length, 0);
+    // Execute real registered handlers with delayed leases and edited inputs.
+    FormData = class { constructor(target) { this.data = target.data; } get(key) { return this.data[key]; } *[Symbol.iterator]() { yield* Object.entries(this.data); } };
+    let operation; run = action => { operation = action(); return operation; };
+    const requests = []; let resolvePending;
+    api = async (url, options) => {
+      requests.push({url, options});
+      if (url.endsWith('/leases/automation')) return new Promise(resolve => { resolvePending = resolve; });
+      return {};
+    };
+    selected = {id:'workspace-b'};
+    const commandTarget = {data:{cwd:'/workspace/common', command:'printf original'}};
+    $('command-form').listeners.submit({preventDefault(){}, target:commandTarget});
+    const commandOperation = operation;
+    commandTarget.data.command = 'printf changed';
+    poll = async () => {};
+    resolvePending({id:'lease'}); await commandOperation;
+    assert.equal(requests[1].options.body.command, 'printf original');
+    assert.equal(requests[1].options.body.cwd, '/workspace/common');
+    requests.length = 0;
+    $('file-path').value = 'common/original';
+    const realLoadFiles = loadFiles; loadFiles = async () => {};
+    const uploadTarget = {data:{file:{name:'report.pdf'}}, reset(){}};
+    $('upload-form').listeners.submit({preventDefault(){},target:uploadTarget});
+    const uploading = operation;
+    $('file-path').value = 'output/changed';
+    resolvePending({id:'lease'}); await uploading;
+    assert.equal(requests[1].url, '/api/workspaces/workspace-b/files?path=common%2Foriginal%2Freport.pdf');
+    requests.length = 0;
+    $('upload-form').listeners.submit({preventDefault(){},target:uploadTarget});
+    const switchedUpload = operation; selected = {id:'workspace-c'}; epoch++;
+    resolvePending({id:'lease'});
+    await assert.rejects(switchedUpload, /Workspace changed/);
+    assert.equal(requests.length, 1);
+    // File deletion keeps the path rendered for the original directory.
+    selected = {id:'workspace-c'}; $('file-path').value = 'common/original';
+    api = async () => ({quota:{usedBytes:0,limitBytes:100},files:[{name:'report.pdf'}]});
+    await realLoadFiles();
+    const deleteButton = $('file-list').children[0].children.at(-1);
+    confirm = () => true; requests.length = 0;
+    api = async (url, options) => { requests.push({url,options}); return url.endsWith('/leases/automation') ? new Promise(resolve => {resolvePending=resolve;}) : {}; };
+    deleteButton.listeners.click(); const deleting = operation;
+    $('file-path').value = 'output/changed'; resolvePending({id:'lease'}); await deleting;
+    assert.equal(requests[1].url, '/api/workspaces/workspace-c/files?path=common%2Foriginal%2Freport.pdf');
+    requests.length = 0; leaseIds.human = 'human-id';
+    api = async (url, options) => { requests.push({url,options}); return {id:'human-id',expiresAt:Date.now()+30000}; };
+    await lease('human','renew');
+    assert.equal(requests[0].options.method, 'PUT');
+    assert.equal(requests[0].options.body.id, 'human-id');
+    await lease('human','release');
+    assert.equal(requests[1].options.method, 'DELETE');
+    assert.equal(leaseIds.human, undefined);
+    assert.equal(human, false);
+    requests.length = 0;
+    api = async (url, options) => { if(options) {requests.push({url,options}); return {};} return [{targetId:'page-1',owner:'old-owner'}]; };
+    await loadPages('/api/workspaces/workspace-c',epoch);
+    prompt = () => 'connection-2';
+    $('page-list').children[0].children.at(-1).listeners.click(); await operation;
+    assert.equal(requests[0].url, '/api/workspaces/workspace-c/pages/page-1');
+    assert.equal(requests[0].options.body.owner, 'connection-2');
   })()`, { document, setInterval() {}, assert, Headers, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
 });
