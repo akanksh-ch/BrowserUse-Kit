@@ -10,6 +10,15 @@ It executes:
 2. `npm run check` (TypeScript, native Node tests, offline runtime policy tests)
 3. `sh deploy/check.sh`
 4. `python3 tests/deployment.test.py -v` (real isolated loopback TLS and synthetic upstream)
+5. `node --import tsx tests/deployment-fixture.ts` (real Caddy MCP/SSE/WSS transport,
+   synthetic auth/page-list/RFB endpoints, temporary trusted certificate and
+   randomly generated throwaway tokens that are never logged)
+
+Step 5 explicitly runs the opt-in smoke harness against its local fixture, so its
+protocol assertions execute rather than skip in hosted CI. Production deployment
+credentials are neither required nor supplied. Caddy shutdown escalates to SIGKILL
+after five seconds, and test child execution has a 60-second deadline. Temporary
+files, listeners and processes are scoped to this fixture.
 
 This deliberately does not launch OCI workspaces, require privileged containers,
 assume Chrome/display availability, or claim Docker/Podman acceptance. Opt-in
@@ -34,3 +43,8 @@ This local execution does not establish a successful hosted Ubuntu workflow run
 or the Ubuntu package's behavior. Consult the PR checks for that result. The
 production/SRS acceptance gaps in [deployment-review.md](deployment-review.md)
 remain open; CI success is not release approval.
+
+Follow-up fixture wiring was locally verified with `npm run typecheck`, the
+fixture command (2 passed, no skips), and actionlint (no diagnostics). A deliberate
+`CADDY=/nonexistent/buk-caddy` run exited 1 promptly after cleanup rather than
+skipping or hanging. These local checks do not substitute for the hosted run.
