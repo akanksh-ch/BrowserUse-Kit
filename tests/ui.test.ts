@@ -86,8 +86,9 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     assert.equal(requests.length, 1);
     // File deletion keeps the path rendered for the original directory.
     selected = {id:'workspace-c'}; $('file-path').value = 'common/original';
-    api = async () => ({quota:{usedBytes:0,limitBytes:100},files:[{name:'report.pdf'}]});
+    api = async () => ({quota:{usedBytes:0,quotaBytes:100},files:[{name:'report.pdf'}]});
     await realLoadFiles();
+    assert.equal($('quota').textContent, '0 / 100 bytes');
     const deleteButton = $('file-list').children[0].children.at(-1);
     confirm = () => true; requests.length = 0;
     api = async (url, options) => { requests.push({url,options}); return url.endsWith('/leases/automation') ? new Promise(resolve => {resolvePending=resolve;}) : {}; };
