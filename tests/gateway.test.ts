@@ -54,6 +54,35 @@ test('MCP unknown/script tools denied; leases and approved upload required; audi
   await gateway.callTool('click'); assert.equal(calls, 1); auditFailed = true; await assert.rejects(gateway.callTool('click')); assert.equal(calls, 1);
 });
 
+test('MCP upload uses protected path and cleans up after success, upstream failure and revalidation denial',async()=>{
+ const p=principal();const leases=new LeaseManager(()=>{},()=>{});leases.acquireAutomation(p);let valid=true,fail=false,cleanups=0,calls=0;
+ const gateway=new McpGateway({principal:p,leases,audit:()=>{},validate:()=>{if(!valid)throw Error('revoked');},
+  validateUpload:async()=>({path:'/tmp/browser-only/paper.pdf',cleanup:async()=>{cleanups++;}}),
+  upstream:{listTools:async()=>({tools:[]}),close:async()=>{},callTool:async(args)=>{calls++;assert.equal(args.arguments.filePath,'/tmp/browser-only/paper.pdf');assert.equal(cleanups,calls-1);if(fail)throw Error('target lost');return {content:[]};}}});
+ await gateway.callTool('upload_file',{filePath:'input/paper.pdf'});assert.equal(cleanups,1);
+ fail=true;await assert.rejects(gateway.callTool('upload_file',{filePath:'input/paper.pdf'}),/target lost/);assert.equal(cleanups,2);
+ const revoked=new McpGateway({principal:p,leases,audit:()=>{},validate:()=>{if(!valid)throw Error('revoked');},validateUpload:async()=>{valid=false;return {path:'/tmp/protected',cleanup:async()=>{cleanups++;}};},upstream:{listTools:async()=>({tools:[]}),close:async()=>{},callTool:async()=>{throw Error('must not dispatch');}}});
+ await assert.rejects(revoked.callTool('upload_file',{filePath:'input/a'}),/revoked/);assert.equal(cleanups,3);assert.equal(calls,2);
+});
+
+test('MCP upload cleanup failure is audited and still releases lifecycle admission',async()=>{
+ const p=principal();const leases=new LeaseManager(()=>{},()=>{});leases.acquireAutomation(p);const events:string[]=[];let released=false;
+ const gateway=new McpGateway({principal:p,leases,audit:(_w,type)=>{events.push(type);},validate:()=>{},beginOperation:()=>()=>{released=true;},
+  validateUpload:async()=>({path:'/tmp/protected',cleanup:async()=>{throw Error('cleanup unavailable');}}),upstream:{listTools:async()=>({tools:[]}),callTool:async()=>({content:[]}),close:async()=>{}}});
+ await assert.rejects(gateway.callTool('upload_file',{filePath:'input/a'}),/cleanup unavailable/);assert.ok(released);assert.ok(events.includes('mcp.upload.cleanup_failed'));
+});
+
+test('MCP lifecycle admission holds read calls and discovery until settlement and rejects before dispatch', async () => {
+  const p=principal();const leases=new LeaseManager(()=>{},()=>{});let active=0,admit=true,calls=0;
+  let release!:()=>void;const wait=new Promise<void>(r=>{release=r;});
+  const gateway=new McpGateway({principal:p,leases,audit:()=>{},validate:()=>{},validateUpload:async(_,path)=>path,
+    beginOperation:()=>{if(!admit)throw Error('stopping');active++;return ()=>{active--;};},
+    upstream:{listTools:async()=>{calls++;await wait;return {tools:[]};},callTool:async()=>{calls++;await wait;throw Error('upstream failed');},close:async()=>{}}});
+  const discovery=gateway.listTools();const call=gateway.callTool('list_pages');const failed=assert.rejects(call,/upstream failed/);
+  assert.equal(active,2);release();await discovery;await failed;assert.equal(active,0);
+  admit=false;await assert.rejects(gateway.listTools(),/stopping/);await assert.rejects(gateway.callTool('list_pages'),/stopping/);assert.equal(calls,2);
+});
+
 test('ownership durable reconnect, expiry, conflicts and generation protect reused targets', () => {
   let data: any[] = []; let time = 0;
   const pages = new PageOwnership(() => {}, () => structuredClone(data), (_, rows) => { data = structuredClone(rows); }, () => time);

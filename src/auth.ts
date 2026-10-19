@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { Store } from './core.js';
 
-export const PERMISSIONS=['view','automation','files:read','files:write','shell','takeover','browser:admin','workspace:manage','script','clipboard'] as const;
+export const PERMISSIONS=['view','automation','files:read','files:write','files:upload','shell','takeover','browser:admin','workspace:manage','script','clipboard'] as const;
 export interface Principal { id:string; subject:string; workspaceId:string|null; audience:string; permissions:string[]; expiresAt:number; kind:string; csrf:string|null; }
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 function equal(a:string,b:string){const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
@@ -13,9 +13,10 @@ export function sessionCookie(token:string,secure=true){return `buk_session=${to
 export class Auth {
   constructor(readonly store:Store,readonly audience='browseruse-kit',readonly sessionIdleMs=1800000){}
   bootstrap(username:string,password:string){return this.store.transaction(()=>{if(this.store.db.prepare('SELECT 1 FROM users LIMIT 1').get())throw new Error('Already bootstrapped');if(!/^[a-zA-Z0-9_.-]{1,64}$/.test(username))throw new Error('Invalid username');const id=randomUUID();this.store.audit(null,'auth.bootstrap',id,'Administrator created');this.store.db.prepare('INSERT INTO users VALUES(?,?,?,?)').run(id,username,hashPassword(password),JSON.stringify(['*']));return id;});}
-  issue(subject:string,workspaceId:string|null,permissions:string[],options:{ttlMs?:number;kind?:'bearer'|'session'}={}) {
+  issue(subject:string,workspaceId:string|null,permissions:string[],options:{ttlMs?:number;kind?:'bearer'|'session';expiresAt?:number}={}) {
     const ttl=options.ttlMs??900000;if(!subject||!Number.isSafeInteger(ttl)||ttl<=0||ttl>28800000||permissions.some(p=>p!=='*'&&!PERMISSIONS.includes(p as typeof PERMISSIONS[number])))throw new Error('Invalid credential');
-    const token=randomBytes(32).toString('base64url'),id=randomUUID(),csrf=options.kind==='session'?randomBytes(32).toString('base64url'):null,expiresAt=Date.now()+ttl;
+    const token=randomBytes(32).toString('base64url'),id=randomUUID(),csrf=options.kind==='session'?randomBytes(32).toString('base64url'):null,expiresAt=Math.min(Date.now()+ttl,options.expiresAt??Infinity);
+    if(!Number.isSafeInteger(expiresAt)||expiresAt<=Date.now())throw new Error('Invalid credential expiry');
     this.store.transaction(()=>{this.store.audit(workspaceId,'auth.issued',subject,'Credential issued');this.store.db.prepare('INSERT INTO credentials VALUES(?,?,?,?,?,?,?,0,?,?,?)').run(hash(token),id,subject,workspaceId,this.audience,JSON.stringify(permissions),expiresAt,options.kind??'bearer',csrf,Date.now());});
     return {token,id,csrf,expiresAt};
   }
@@ -29,7 +30,18 @@ export class Auth {
     const granted:string[]=JSON.parse(row.permissions);
     if(permissions.some(p=>!granted.includes('*')&&!granted.includes(p)))throw new Error('Permission escalation denied');
     const w=this.store.workspace(workspaceId);if(!w||w.state==='deleted'||w.state==='deleting')throw new Error('Workspace unavailable');
-    return this.issue(issuer.subject,workspaceId,permissions,{ttlMs:Math.min(options.ttlMs??900000,row.expiresAt-Date.now())});
+    // Subject-wide durable budget prevents rotating delegated credentials to bypass limits.
+    const limited=this.store.transaction(()=>{
+      const now=Date.now();const prior=this.store.db.prepare('SELECT * FROM token_limits WHERE subject=?').get(issuer.subject) as {attempts:number;windowStart:number;nextAttempt:number}|undefined;
+      const current=prior&&(now-prior.windowStart<60000||prior.nextAttempt>now)?prior:{attempts:0,windowStart:now,nextAttempt:0};
+      const attempts=current.attempts+1;const denied=attempts>20||current.nextAttempt>now;
+      const nextAttempt=denied?now+Math.min(60000,250*2**Math.min(attempts-20,8)):0;
+      this.store.audit(workspaceId,denied?'auth.issue_limited':'auth.issue_requested',issuer.subject,denied?'Token issuance throttled':'Token issuance requested');
+      this.store.db.prepare('INSERT OR REPLACE INTO token_limits VALUES(?,?,?,?)').run(issuer.subject,attempts,current.windowStart,nextAttempt);
+      return denied;
+    });
+    if(limited)throw Object.assign(new Error('Token issuance temporarily unavailable'),{status:429});
+    return this.issue(issuer.subject,workspaceId,permissions,{ttlMs:Math.min(options.ttlMs??900000,row.expiresAt-Date.now()),expiresAt:row.expiresAt});
   }
   login(username:string,password:string,rateKey:string){if(username.length>64||password.length>1024)throw new Error('Invalid credentials');const key=hash(rateKey),now=Date.now();const limit=this.store.db.prepare('SELECT * FROM login_limits WHERE key=?').get(key) as {failures:number;nextAttempt:number}|undefined;
     if(limit&&limit.nextAttempt>now)throw new Error('Login temporarily unavailable');

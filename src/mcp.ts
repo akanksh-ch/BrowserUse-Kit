@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Audit, Principal } from './leases.ts';
 import { LeaseManager } from './leases.ts';
+import { privateNetworkCommand, privateNetworkEnvironment } from './private-network.js';
 
 export const MCP_VERSION = '0.12.1';
 export const SHARED_PROFILE_WARNING = 'Agents share cookies, storage, service workers, downloads and authenticated sessions. Tabs are coordination, not security boundaries. Use separate workspaces for confidentiality.';
@@ -94,11 +95,11 @@ export async function connectPageOwnership(options: { workspaceId: string; brows
   };
 }
 export interface Upstream { listTools(): Promise<{ tools: Array<{ name: string; [key: string]: unknown }> }>; callTool(args: { name: string; arguments: Record<string, unknown> }, ...rest: any[]): Promise<any>; close(): Promise<void> }
-export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string>; }
+export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string | { path:string; cleanup:()=>Promise<void> }>; beginOperation?: () => () => void; }
 export class McpGateway {
   constructor(private options: GatewayOptions) {}
   private capability(name: string) { const o = this.options; o.validate(o.principal); const c = CAPABILITIES[name]; if (!Object.hasOwn(CAPABILITIES, name) || !c || !o.principal.permissions.includes(c.permission)) { o.audit(o.principal.workspaceId, 'mcp.denied', o.principal.connectionId, 'unclassified or unauthorized tool'); throw new Error('Tool denied'); } return c; }
-  async listTools() { this.options.validate(this.options.principal); const result = await this.options.upstream.listTools(); return { tools: result.tools.filter(t => Object.hasOwn(CAPABILITIES, t.name) && this.options.principal.permissions.includes(CAPABILITIES[t.name]!.permission)) }; }
+  async listTools() { this.options.validate(this.options.principal); const end=this.options.beginOperation?.(); try { const result = await this.options.upstream.listTools(); return { tools: result.tools.filter(t => Object.hasOwn(CAPABILITIES, t.name) && this.options.principal.permissions.includes(CAPABILITIES[t.name]!.permission)) }; } finally { end?.(); } }
   async callTool(name: string, args: Record<string, unknown> = {}) {
     const o = this.options; const c = this.capability(name); const controller = new AbortController(); let settled!: () => void; const done = new Promise<void>(resolve => { settled = resolve; });
     const end = c.mutation ? o.leases.beginMutation(o.principal, async () => {
@@ -106,27 +107,29 @@ export class McpGateway {
       // Never grant human input on that acknowledgement alone. Operator can retry once settled.
       controller.abort(); await done; throw new Error('Browser mutation cancellation cannot prove quiescence; retry takeover');
     }) : () => {};
+    let endOperation: (() => void) | undefined; let cleanupUpload: (()=>Promise<void>) | undefined;
     try {
+      endOperation=o.beginOperation?.();
       o.audit(o.principal.workspaceId, 'mcp.started', o.principal.connectionId, name);
       const safe = { ...args };
-      if (name === 'upload_file') { if (typeof safe.filePath !== 'string') throw new Error('filePath required'); safe.filePath = await o.validateUpload(o.principal, safe.filePath); }
+      if (name === 'upload_file') { if (typeof safe.filePath !== 'string') throw new Error('filePath required'); const upload=await o.validateUpload(o.principal, safe.filePath); safe.filePath=typeof upload==='string'?upload:upload.path; if(typeof upload!=='string')cleanupUpload=upload.cleanup; }
       // MCP screenshot tool may otherwise write arbitrary paths inside the control sidecar.
       if (Object.hasOwn(safe, 'filePath') && name !== 'upload_file') throw new Error('Artifact path is not permitted');
       this.capability(name); if (c.mutation) o.leases.assertAutomation(o.principal); if (controller.signal.aborted) throw new Error('Preempted');
       const result = await o.upstream.callTool({ name, arguments: safe }, undefined, { signal: controller.signal });
       o.validate(o.principal); o.audit(o.principal.workspaceId, 'mcp.completed', o.principal.connectionId, name); return result;
     } catch (error) { o.audit(o.principal.workspaceId, 'mcp.failed', o.principal.connectionId, name); throw error; }
-    finally { end(); settled(); }
+    finally { try { await cleanupUpload?.(); } catch(error) { o.audit(o.principal.workspaceId,'mcp.upload.cleanup_failed',o.principal.connectionId,'Protected browser upload cleanup failed'); throw error; } finally { end(); try { endOperation?.(); } finally { settled(); } } }
   }
   close() { return this.options.upstream.close(); }
 }
 /** No npx/latest resolution at runtime. Executable must come from the locked release image. */
-export async function connectChromeMcp(options: { executable: string; version: string; browserUrl: string }) {
+export async function connectChromeMcp(options: { executable: string; version: string; browserUrl: string; rootlessPodman?:boolean }) {
   if (options.version !== MCP_VERSION) throw new Error('Unsupported MCP capability-map version');
   const url = new URL(options.browserUrl); if (url.protocol !== 'http:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Invalid private CDP URL');
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
-  const transport = new StdioClientTransport({ command: options.executable, args: [`--browserUrl=${url.origin}`], env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: '/tmp' }, stderr: 'ignore' });
+  const transport = new StdioClientTransport({ ...privateNetworkCommand(options.executable,[`--browserUrl=${url.origin}`],Boolean(options.rootlessPodman)), env: privateNetworkEnvironment(Boolean(options.rootlessPodman)), stderr: 'ignore' });
   const client = new Client({ name: 'browseruse-kit', version: '1.0.0' });
   try { await client.connect(transport); validateMcpVersion(client.getServerVersion()); validateCapabilityDiscovery(await client.listTools()); return client; } catch (e) { await transport.close(); throw e; }
 }
