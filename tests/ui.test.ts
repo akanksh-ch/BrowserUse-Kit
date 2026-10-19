@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 
 test('operator state never invents readiness or timestamps; lifecycle events filter as system', async () => {
   const nodes = new Map<string, any>();
-  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', children: [] as any[], listeners: {} as Record<string, Function>, addEventListener(type: string, handler: Function) { this.listeners[type] = handler; }, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
+  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', close() {}, reset() {}, children: [] as any[], listeners: {} as Record<string, Function>, addEventListener(type: string, handler: Function) { this.listeners[type] = handler; }, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
   const document = { getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }, createElement: node, querySelectorAll: () => [] };
   const source = readFileSync(new URL('../frontend/controller.js', import.meta.url), 'utf8').replace(/run\(async \(\) => \{ try \{ const me =[\s\S]*$/, '');
   await runInNewContext(source + `(async () => {
@@ -109,5 +109,13 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     $('page-list').children[0].children.at(-1).listeners.click(); await operation;
     assert.equal(requests[0].url, '/api/workspaces/workspace-c/pages/page-1');
     assert.equal(requests[0].options.body.owner, 'connection-2');
+    let disconnected = false; rfb = {disconnect(){disconnected = true;}};
+    for (const id of ['events','command-history','file-list','page-list','screenshot-list','token-list']) $(id).append({textContent:'sensitive'});
+    $('token-result').value = 'one-time-secret';
+    signOutLocal();
+    assert.equal(disconnected, true); assert.equal(rfb, null);
+    assert.equal($('token-result').value, '');
+    assert.equal(events.length, 0); assert.equal(workspaces.length, 0);
+    for (const id of ['events','command-history','file-list','page-list','screenshot-list','token-list']) assert.equal($(id).children.length, 0);
   })()`, { document, setInterval() {}, assert, Headers, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
 });
