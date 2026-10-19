@@ -131,3 +131,65 @@ policy acceptance matrix. Production authentication, MCP, viewer gating,
 revocation, real firewall enforcement, Docker and SRS release acceptance remain
 unverified by this work. Default `npm test` explicitly skips the live fixture
 unless provisioned with `BUK_LIVE_ROOTLESS_CONTROL=1` and the local image.
+
+## Independent backend transport/supervision review
+
+Reviewed backend commit `c47f349` in `/tmp/buk-backend`. It already implements
+private CDP, viewer and MCP namespace launch in `src/private-network.ts` and
+`src/mcp.ts`; no competing transport implementation was added here.
+
+Executed its existing live test read-only:
+
+```sh
+cd /tmp/buk-backend
+BUK_LIVE_PRIVATE_NETWORK=1 node --import tsx --test tests/private-network.test.ts
+```
+
+**2 passed, no skips.** This exercises actual backend code through disposable
+rootless Podman HTTP/WebSocket CDP-shaped and RFB-shaped private endpoints,
+without published ports. Its fixture is synthetic, not real Chrome/VNC acceptance.
+Its unique fixture containers/networks were removed by its own cleanup.
+
+### Confirmed MCP worker cleanup defect
+
+`src/mcp.ts:132` uses the SDK `StdioClientTransport` with the wrapper returned by
+`src/private-network.ts:7–8` (`podman unshare --rootless-netns env ... WORKER`).
+SDK `client/stdio.js:143–176` closes stdin and signals only the direct wrapper PID,
+first TERM then KILL. It does not kill a worker process group. An uncooperative
+stdio worker survives the wrapper's termination:
+
+- Spawned a unique marked Node stdio worker through the **actual backend**
+  `privateNetworkCommand` and SDK `StdioClientTransport` under rootless Podman.
+- Worker sent a JSON-RPC PID notification, ignored SIGTERM and remained alive on
+  stdin EOF. No browser, credentials, listeners or external service were involved.
+- Called `transport.close()`: returned after **4205 ms** while `kill(workerPID, 0)`
+  still succeeded. Thus close did not prove child termination.
+- Before cleanup, checked `/proc/PID/cmdline` contained this test's unique random
+  marker; killed only that exact owned worker. No marked worker remained afterward.
+
+Minimal reproduction contract for a backend regression test:
+
+```ts
+const marker = 'owned-probe-' + randomUUID();
+const script = `process.on('SIGTERM',()=>{});process.stdin.resume();
+console.log(JSON.stringify({jsonrpc:'2.0',method:'probe/pid',params:{pid:process.pid,marker:process.argv[1]}}));
+setInterval(()=>{},1000)`;
+const transport = new StdioClientTransport({
+  ...privateNetworkCommand(process.execPath, ['-e', script, marker], true),
+  env: privateNetworkEnvironment(true), stderr: 'ignore',
+});
+// Register onmessage before start; retain only PID with matching marker.
+await transport.start();
+await ownPidNotification;
+await transport.close();
+// Observed: owned worker is still alive. Always verify its unique cmdline marker
+// before force-killing it in the regression test's finally block.
+```
+
+**Required fix contract:** supervise a dedicated process group or equivalent
+owned subtree, close stdin/cancel work, apply bounded TERM→KILL escalation to the
+whole owned group, and await actual worker exit before acknowledging cleanup.
+Do not kill by executable name or broadly signal unrelated Podman processes.
+Credential revocation and lifecycle stop must use this same awaited cleanup.
+The backend owner should add this regression before claiming abandoned-worker
+termination; no server/transport files were modified by this independent review.
