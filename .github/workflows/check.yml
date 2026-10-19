@@ -1,0 +1,33 @@
+name: Development checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Native/unit and offline runtime checks only. Opt-in OCI/browser tests
+      # stay skipped; this job is not SRS acceptance or Docker/Podman coverage.
+      - run: npm run check
+      - name: Install gateway test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y caddy openssl
+          caddy version
+      - name: Validate gateway and exercise loopback TLS
+        run: |
+          sh deploy/check.sh
+          python3 tests/deployment.test.py -v

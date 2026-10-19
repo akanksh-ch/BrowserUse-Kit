@@ -1,0 +1,56 @@
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -308,7 +308,15 @@
+         return;
+ 
+       case "auto": {
+-        const provider = c.model?.provider;
++        const selectedProvider = c.model?.provider;
++        // OpenAI API keys cannot query ChatGPT usage. Only use a separate
++        // Codex OAuth login, without changing the selected model or its auth.
++        const provider = selectedProvider === "openai" ? "openai-codex" : selectedProvider;
++        const codexFallback = selectedProvider === "openai";
++        if (codexFallback && readStoredCredential("openai-codex")?.type !== "oauth") {
++          c.ui.notify("/kg auto needs a separate Codex OAuth login: /login openai-codex. OpenAI API keys do not expose ChatGPT quota. Use /kg <duration> instead.", "warning");
++          return;
++        }
+         const family = provider ? providerFamily(provider) : null;
+         if (!provider || !family) {
+           c.ui.notify(
+@@ -338,7 +346,7 @@
+         const fireAt = result.reset.at.getTime() + settings.autoResume.bufferSeconds * 1000;
+         const job = sched.add({ fireAt, message: command.message, kind: "auto" });
+         c.ui.notify(
+-          `Auto: usage resets ~${clock(result.reset.at.getTime())}; sending "${job.message}" at ${clock(fireAt)}.`,
++          `Auto${codexFallback ? " (separate Codex OAuth quota; current model unchanged)" : ""}: usage resets ~${clock(result.reset.at.getTime())}; sending "${job.message}" at ${clock(fireAt)}.`,
+           "info",
+         );
+         return;
+--- a/src/limits/codex.ts
++++ b/src/limits/codex.ts
+@@ -38,12 +38,19 @@
+ }
+ 
+ export function codexResetFromBody(body: unknown, now: number): ResetInfo | null {
+-  const primary = pick(pick(body, "rate_limit"), "primary_window");
+-  const resetAt = num(pick(primary, "reset_at"));
+-  if (resetAt !== null) return { at: new Date(resetAt * 1000), source: "body" };
+-  const resetAfter = num(pick(primary, "reset_after_seconds"));
+-  if (resetAfter !== null) return { at: new Date(now + resetAfter * 1000), source: "body" };
+-  return null;
++  const rateLimit = pick(body, "rate_limit");
++  const windows = [pick(rateLimit, "primary_window"), pick(rateLimit, "secondary_window")];
++  const resets = windows.map((window) => {
++    const epoch = num(pick(window, "reset_at"));
++    const after = num(pick(window, "reset_after_seconds"));
++    const at = epoch !== null ? epoch * 1000 : after !== null ? now + after * 1000 : NaN;
++    return { at, exhausted: (num(pick(window, "used_percent")) ?? 0) >= 100 };
++  }).filter((reset) => Number.isFinite(reset.at) && reset.at > now);
++  // Both windows must recover before requests can succeed. When neither is
++  // exhausted, retain the ordinary next-window reset behavior.
++  const exhausted = resets.filter((reset) => reset.exhausted);
++  const at = exhausted.length ? Math.max(...exhausted.map((reset) => reset.at)) : resets[0]?.at;
++  return at === undefined ? null : { at: new Date(at), source: "body" };
+ }
+ 
+ export async function fetchCodexReset(args: { token: string } & FetchDeps): Promise<UsageResult> {
