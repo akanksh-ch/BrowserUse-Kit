@@ -59,7 +59,10 @@ of production acceptance on your host.
 non-loopback HTTP binds. `BUK_HOSTS` is a **literal comma-separated** allowlist
 matched against the incoming Host header. Caddy preserves the original Host;
 rewriting it to localhost or a fixed accepted value would defeat that boundary.
-The explicit gateway Host guard also rejects unexpected authority values.
+The explicit gateway Host guard rejects unexpected authority values within the
+named site. A separate HTTPS catch-all returns 421 for unmatched Host values;
+without it, Caddy can return an empty 200 without reaching the named site's guard.
+Unknown TLS SNI values may instead fail the TLS handshake.
 
 `BUK_SECURE=1` (exactly `1`, not `true`) independently selects Secure on login
 and logout cookies, and HTTPS for the viewer's same-origin check. Cookies remain
@@ -85,7 +88,20 @@ WebSocket upgrades, while Node authenticates and gates viewer input.
 
 `sh deploy/check.sh` uses the actual Caddy parser and module provisioning; set
 `CADDY=/path/to/caddy` if needed. It does not start listeners or obtain a real
-certificate. After startup:
+certificate. A focused regression test is also available:
+
+```sh
+CADDY=/path/to/caddy python3 tests/deployment.test.py -v
+```
+
+It validates the original config, then runs an isolated loopback high-port copy
+with a temporary, explicitly trusted test certificate and synthetic upstream.
+It checks exact authorities, preserved Host/bearer/MCP headers and unbuffered SSE.
+It does not exercise Node authentication, real MCP/noVNC, ACME, public listeners,
+HTTP/2/3, production certificate storage or runtime isolation. Without Caddy and
+OpenSSL the live test explicitly skips; that is not a passing TLS verification.
+
+After startup:
 
 ```sh
 # Run locally: Host is deliberately the public authority, not localhost.

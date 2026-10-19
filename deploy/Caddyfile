@@ -1,3 +1,9 @@
+# Catch unmatched Host values after TLS succeeds for the configured DNS name.
+# A site-local guard alone is not reached when Caddy's site matcher rejects Host.
+https:// {
+	respond 421
+}
+
 # Replace buk.example.com here AND in buk.env before deployment.
 buk.example.com {
 	# Reject unexpected authority values rather than rewriting Host to an allowed one.
