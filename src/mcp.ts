@@ -94,7 +94,7 @@ export async function connectPageOwnership(options: { workspaceId: string; brows
   };
 }
 export interface Upstream { listTools(): Promise<{ tools: Array<{ name: string; [key: string]: unknown }> }>; callTool(args: { name: string; arguments: Record<string, unknown> }, ...rest: any[]): Promise<any>; close(): Promise<void> }
-export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string>; beginOperation?: () => () => void; }
+export interface GatewayOptions { principal: Principal; leases: LeaseManager; audit: Audit; validate: (p: Principal) => void; upstream: Upstream; validateUpload: (p: Principal, path: string) => Promise<string | { path:string; cleanup:()=>Promise<void> }>; beginOperation?: () => () => void; }
 export class McpGateway {
   constructor(private options: GatewayOptions) {}
   private capability(name: string) { const o = this.options; o.validate(o.principal); const c = CAPABILITIES[name]; if (!Object.hasOwn(CAPABILITIES, name) || !c || !o.principal.permissions.includes(c.permission)) { o.audit(o.principal.workspaceId, 'mcp.denied', o.principal.connectionId, 'unclassified or unauthorized tool'); throw new Error('Tool denied'); } return c; }
@@ -106,19 +106,19 @@ export class McpGateway {
       // Never grant human input on that acknowledgement alone. Operator can retry once settled.
       controller.abort(); await done; throw new Error('Browser mutation cancellation cannot prove quiescence; retry takeover');
     }) : () => {};
-    let endOperation: (() => void) | undefined;
+    let endOperation: (() => void) | undefined; let cleanupUpload: (()=>Promise<void>) | undefined;
     try {
       endOperation=o.beginOperation?.();
       o.audit(o.principal.workspaceId, 'mcp.started', o.principal.connectionId, name);
       const safe = { ...args };
-      if (name === 'upload_file') { if (typeof safe.filePath !== 'string') throw new Error('filePath required'); safe.filePath = await o.validateUpload(o.principal, safe.filePath); }
+      if (name === 'upload_file') { if (typeof safe.filePath !== 'string') throw new Error('filePath required'); const upload=await o.validateUpload(o.principal, safe.filePath); safe.filePath=typeof upload==='string'?upload:upload.path; if(typeof upload!=='string')cleanupUpload=upload.cleanup; }
       // MCP screenshot tool may otherwise write arbitrary paths inside the control sidecar.
       if (Object.hasOwn(safe, 'filePath') && name !== 'upload_file') throw new Error('Artifact path is not permitted');
       this.capability(name); if (c.mutation) o.leases.assertAutomation(o.principal); if (controller.signal.aborted) throw new Error('Preempted');
       const result = await o.upstream.callTool({ name, arguments: safe }, undefined, { signal: controller.signal });
       o.validate(o.principal); o.audit(o.principal.workspaceId, 'mcp.completed', o.principal.connectionId, name); return result;
     } catch (error) { o.audit(o.principal.workspaceId, 'mcp.failed', o.principal.connectionId, name); throw error; }
-    finally { end(); endOperation?.(); settled(); }
+    finally { try { await cleanupUpload?.(); } catch(error) { o.audit(o.principal.workspaceId,'mcp.upload.cleanup_failed',o.principal.connectionId,'Protected browser upload cleanup failed'); throw error; } finally { end(); try { endOperation?.(); } finally { settled(); } } }
   }
   close() { return this.options.upstream.close(); }
 }

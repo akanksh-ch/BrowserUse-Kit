@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import { Store } from './core.js';
 
-export const PERMISSIONS=['view','automation','files:read','files:write','shell','takeover','browser:admin','workspace:manage','script','clipboard'] as const;
+export const PERMISSIONS=['view','automation','files:read','files:write','files:upload','shell','takeover','browser:admin','workspace:manage','script','clipboard'] as const;
 export interface Principal { id:string; subject:string; workspaceId:string|null; audience:string; permissions:string[]; expiresAt:number; kind:string; csrf:string|null; }
 const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
 function equal(a:string,b:string){const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y);}
