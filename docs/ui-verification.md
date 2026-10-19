@@ -40,6 +40,14 @@ Inspected `origin/fix/v1-backend` without merging its pending changes. Command s
 
 Expanded the runnable controller harness to execute actual registered form/button handlers: command inputs remain their submitted values during delayed acquisition; upload/delete keep the original directory if the path input changes while awaiting a lease; switching workspaces during upload sends no mutation. It also verifies page-transfer owner payload and renewal/release methods/IDs, alongside credential-expiry assertions. `npm run check` and production build pass. These are deterministic client checks, not claims of real runtime execution.
 
+## Latest production browser regression
+
+Using DevTools against the latest built assets and existing real loopback backend: keyboard-only Tab/type/Enter login and workspace creation succeeded; Tab/Enter opened the named credentials dialog and Escape dismissed it. Issued a real disposable credential and verified only presence, never captured its value in evidence.
+
+Reproduced logout retaining hidden credential/timeline rows despite clearing the one-time token. Fixed logout to clear sensitive panel DOM, in-memory lists, identity/status, and command/upload/token forms. Added a behavioral test asserting panel/token cleanup and viewer disconnect; live VNC is still unavailable. Rebuilt and rechecked browser logout with non-secret sentinels: login shown, token empty, all sensitive panels empty.
+
+Browser fault injection (not runtime acceptance): delayed workspace A's inspect response, switched to B, then resolved A; B's name/ID remained selected. Injected a files HTTP 503 and verified visible diagnostic/retry guidance. Latest mobile build measured 390px document width at 390px viewport. Desktop/browser functional checks and earlier screenshot checks remain valid; CSS was unchanged. `npm run check`, build, and diff whitespace checks passed.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.
