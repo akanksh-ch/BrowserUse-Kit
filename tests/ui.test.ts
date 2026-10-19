@@ -32,5 +32,23 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     assert.equal(human, false);
     assert.equal(rfb.viewOnly, true);
     assert.equal($('control-state').textContent, 'View only · release requested');
+    // Delay lease acquisition and switch workspaces before it resolves.
+    const mutations = []; let resolveLease;
+    api = () => new Promise(resolve => { resolveLease = resolve; });
+    selected = {id:'workspace-a'};
+    const pending = withAutomation(url => mutations.push(url));
+    selected = {id:'workspace-b'}; epoch++;
+    resolveLease({id:'old-lease'});
+    await assert.rejects(pending, /Workspace changed/);
+    assert.equal(mutations.length, 0);
+    assert.equal(leaseIds.automation, undefined);
+    api = async () => ({id:'new-lease'});
+    await withAutomation(url => mutations.push(url));
+    assert.equal(mutations[0], '/api/workspaces/workspace-b');
+    // A delayed list response must not repopulate a signed-out session.
+    let resolveList; api = () => new Promise(resolve => { resolveList = resolve; });
+    workspaces = []; const refreshing = refresh(); epoch++;
+    resolveList([{id:'stale-workspace'}]); await refreshing;
+    assert.equal(workspaces.length, 0);
   })()`, { document, setInterval() {}, assert, Headers, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
 });

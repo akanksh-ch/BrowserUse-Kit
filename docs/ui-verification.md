@@ -30,6 +30,10 @@ Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Pr
 - Runtime-contract inspection found release failures could leave the client viewer interactive until renewal failed. Release now disables local pointer/keyboard input before the network request; a regression test forces HTTP 503 and checks view-only remains enforced. Server input gating remains authoritative.
 - 403/409/5xx UI errors now include permission/session, contention, or runtime-diagnostic recovery guidance respectively. This does not turn failures into readiness.
 
+## Workspace race checks
+
+Merged deployment PR #2 from main without removing either the TLS fixture step or frontend build step. Added runnable VM behavioral checks (no source-regex assertions): delay automation acquisition, switch A → B, resolve A's lease, assert no mutation is sent and no stale lease is installed; then assert a new mutation uses B. A delayed workspace-list response is also discarded after session epoch changes. Command, upload, and delete paths now capture inputs and use the guarded automation helper. Viewer bootstrap, token listing/issuance, and workspace switching discard stale continuations. `npm run check` and build pass after these changes.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.
