@@ -1,0 +1,318 @@
+[
+     {
+          "Id": "db3b307b7b98a66d36bee6e895e428075c5c2d5bce06978af0e33701b2606d94",
+          "Digest": "sha256:e72846ed441a93bde6bf7548faa1d16023c4578fc2b5dfa0bbda44b8037f8bc2",
+          "RepoTags": [
+               "localhost/browseruse-browser:local"
+          ],
+          "RepoDigests": [
+               "localhost/browseruse-browser@sha256:e72846ed441a93bde6bf7548faa1d16023c4578fc2b5dfa0bbda44b8037f8bc2"
+          ],
+          "Parent": "6736b7b25bb424e1d9992d6335b987cca38461001d7e670cca566a777073d25a",
+          "Comment": "debuerreotype 0.17",
+          "Created": "2026-10-18T23:19:01.220040832Z",
+          "Config": {
+               "User": "1000:1000",
+               "Env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "DISPLAY=:99",
+                    "HOME=/home/browser"
+               ],
+               "Entrypoint": [
+                    "/usr/local/bin/entrypoint.sh"
+               ],
+               "Labels": {
+                    "io.buildah.version": "1.43.4"
+               }
+          },
+          "Version": "",
+          "Author": "",
+          "Architecture": "amd64",
+          "Os": "linux",
+          "Size": 1244906781,
+          "VirtualSize": 1244906781,
+          "GraphDriver": {
+               "Name": "overlay",
+               "Data": {
+                    "LowerDir": "/home/akanksh/.local/share/containers/storage/overlay/31e64da892d3278da0963856ebdd176901ec6d0b1be062fdeeecc895881a7644/diff:/home/akanksh/.local/share/containers/storage/overlay/2b232b72660cce032e639d0dc0856878d24c36d780157c32a84262532e57cbfd/diff:/home/akanksh/.local/share/containers/storage/overlay/e36503edb4196f74caf01f0a93609fe5e0e7ea4d1be68e7990040535972f5cb3/diff:/home/akanksh/.local/share/containers/storage/overlay/795931d70ab3b361e7e4557db00c03084cf40e9de120c426af45e2e70507fd22/diff:/home/akanksh/.local/share/containers/storage/overlay/e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7/diff",
+                    "UpperDir": "/home/akanksh/.local/share/containers/storage/overlay/4aa817fc790f7f5896ca53b24b9f87fdb51673a96756927943fbb7eb7bef7efd/diff",
+                    "WorkDir": "/home/akanksh/.local/share/containers/storage/overlay/4aa817fc790f7f5896ca53b24b9f87fdb51673a96756927943fbb7eb7bef7efd/work"
+               }
+          },
+          "RootFS": {
+               "Type": "layers",
+               "Layers": [
+                    "sha256:e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7",
+                    "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+                    "sha256:cf6a0ea5192bce864290e19551c0aa2c189bee5b7b8e656db04cc1ba3f704845",
+                    "sha256:6570aa8b02dcc0370ee3e39f27435c3211fbcddf76e8bce089bbeba09a7ff973",
+                    "sha256:04db72e63d0869325c068f735667c885ae9ee12c2ff57ef38b04c15c8b82eac5",
+                    "sha256:04db72e63d0869325c068f735667c885ae9ee12c2ff57ef38b04c15c8b82eac5"
+               ]
+          },
+          "Labels": {
+               "io.buildah.version": "1.43.4"
+          },
+          "Annotations": {
+               "org.opencontainers.image.base.digest": "sha256:a4672c0cb26fbdde88e38fa2dfb6c681942306680e41e4378b28770b6e79ee91",
+               "org.opencontainers.image.base.name": "docker.io/library/debian:bookworm-slim",
+               "org.opencontainers.image.created": "2026-10-18T23:19:01.220040832Z"
+          },
+          "ManifestType": "application/vnd.oci.image.manifest.v1+json",
+          "User": "1000:1000",
+          "History": [
+               {
+                    "created": "2026-10-05T00:00:00Z",
+                    "created_by": "# debian.sh --arch 'amd64' out/ 'bookworm' '@1791158400'",
+                    "comment": "debuerreotype 0.17"
+               },
+               {
+                    "created": "2026-10-18T23:17:47.894844823Z",
+                    "created_by": "/bin/sh -c #(nop) ARG CHROME_VERSION",
+                    "comment": "FROM docker.io/library/debian:bookworm-slim",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:17:48.312252295Z",
+                    "created_by": "|1 CHROME_VERSION=155.0.8059.84-1 /bin/sh -c test -n \"$CHROME_VERSION\" || (echo 'CHROME_VERSION must be an exact available Google Chrome version' >&2; exit 1)"
+               },
+               {
+                    "created": "2026-10-18T23:18:54.809466799Z",
+                    "created_by": "|1 CHROME_VERSION=155.0.8059.84-1 /bin/sh -c apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg python3 xvfb fluxbox x11vnc novnc websockify socat util-linux x11-utils &&     curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg &&     echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list &&     apt-get update && apt-get install -y --no-install-recommends google-chrome-stable=\"$CHROME_VERSION\" &&     mkdir -p /opt/browseruse && dpkg-query -W > /opt/browseruse/packages.lock && rm -rf /var/lib/apt/lists/* &&     useradd --uid 1000 --create-home browser && mkdir -p /profile /workspace/downloads /etc/opt/chrome/policies/managed && chown -R 1000:1000 /profile /workspace"
+               },
+               {
+                    "created": "2026-10-18T23:19:00.261077655Z",
+                    "created_by": "/bin/sh -c #(nop) COPY file:e187f56ed8d82b8ecc6a77cbbf65b241f3a4d280957358b5d4c82e9513fb5bac in /etc/opt/chrome/policies/managed/browseruse.json      "
+               },
+               {
+                    "created": "2026-10-18T23:19:00.520907819Z",
+                    "created_by": "/bin/sh -c #(nop) COPY multi:a575f1212a104f9e3291491fc605809f37d24d67891dbf6e3b79f724cd0a0e51 in /usr/local/bin/      "
+               },
+               {
+                    "created": "2026-10-18T23:19:00.900016347Z",
+                    "created_by": "|1 CHROME_VERSION=155.0.8059.84-1 /bin/sh -c chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh"
+               },
+               {
+                    "created": "2026-10-18T23:19:01.014304366Z",
+                    "created_by": "/bin/sh -c #(nop) USER 1000:1000",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:01.076263592Z",
+                    "created_by": "/bin/sh -c #(nop) ENV DISPLAY=:99 HOME=/home/browser",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:01.151118015Z",
+                    "created_by": "/bin/sh -c #(nop) HEALTHCHECK --interval=5s --timeout=3s --start-period=30s CMD [\"/usr/local/bin/healthcheck.sh\"]",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:01.220267679Z",
+                    "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"/usr/local/bin/entrypoint.sh\"]",
+                    "empty_layer": true
+               }
+          ],
+          "NamesHistory": [
+               "localhost/browseruse-browser:local"
+          ]
+     },
+     {
+          "Id": "063e8368be40acfb51146cef0552a3083ecc9a791558d1738a7c6bef64211142",
+          "Digest": "sha256:19280d545e7985699fd5ff43a024edae8f5670bfa11b587564aff5345d61a70d",
+          "RepoTags": [
+               "localhost/buk-utility-files-test:latest",
+               "localhost/browseruse-utility:local"
+          ],
+          "RepoDigests": [
+               "localhost/browseruse-utility@sha256:19280d545e7985699fd5ff43a024edae8f5670bfa11b587564aff5345d61a70d",
+               "localhost/buk-utility-files-test@sha256:19280d545e7985699fd5ff43a024edae8f5670bfa11b587564aff5345d61a70d"
+          ],
+          "Parent": "fa217e965dcc49198317c011bbcf6900804a83fdb11c918469f78ab0fb3ec4de",
+          "Comment": "debuerreotype 0.17",
+          "Created": "2026-10-18T23:19:11.017188991Z",
+          "Config": {
+               "User": "1000:1000",
+               "Env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "HOME=/home/worker",
+                    "HTTP_PROXY=http://egress:3128",
+                    "HTTPS_PROXY=http://egress:3128",
+                    "http_proxy=http://egress:3128",
+                    "https_proxy=http://egress:3128"
+               ],
+               "Entrypoint": [
+                    "/usr/bin/tini",
+                    "--"
+               ],
+               "Cmd": [
+                    "sleep",
+                    "infinity"
+               ],
+               "WorkingDir": "/workspace",
+               "Labels": {
+                    "io.buildah.version": "1.43.4"
+               }
+          },
+          "Version": "",
+          "Author": "",
+          "Architecture": "amd64",
+          "Os": "linux",
+          "Size": 130119287,
+          "VirtualSize": 130119287,
+          "GraphDriver": {
+               "Name": "overlay",
+               "Data": {
+                    "LowerDir": "/home/akanksh/.local/share/containers/storage/overlay/e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7/diff",
+                    "UpperDir": "/home/akanksh/.local/share/containers/storage/overlay/1d09afeec243205dce47bf0baa1dc0c6b314ad0a50087433f472cebe48b55422/diff",
+                    "WorkDir": "/home/akanksh/.local/share/containers/storage/overlay/1d09afeec243205dce47bf0baa1dc0c6b314ad0a50087433f472cebe48b55422/work"
+               }
+          },
+          "RootFS": {
+               "Type": "layers",
+               "Layers": [
+                    "sha256:e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7",
+                    "sha256:320c7a93fa07b539c5a92724be59596e9563540559c6ecb53c9f81773e52dfc9"
+               ]
+          },
+          "Labels": {
+               "io.buildah.version": "1.43.4"
+          },
+          "Annotations": {
+               "org.opencontainers.image.base.digest": "sha256:a4672c0cb26fbdde88e38fa2dfb6c681942306680e41e4378b28770b6e79ee91",
+               "org.opencontainers.image.base.name": "docker.io/library/debian:bookworm-slim",
+               "org.opencontainers.image.created": "2026-10-18T23:19:11.017188991Z"
+          },
+          "ManifestType": "application/vnd.oci.image.manifest.v1+json",
+          "User": "1000:1000",
+          "History": [
+               {
+                    "created": "2026-10-05T00:00:00Z",
+                    "created_by": "# debian.sh --arch 'amd64' out/ 'bookworm' '@1791158400'",
+                    "comment": "debuerreotype 0.17"
+               },
+               {
+                    "created": "2026-10-18T23:19:10.190083899Z",
+                    "created_by": "/bin/sh -c apt-get update && apt-get install -y --no-install-recommends ca-certificates curl python3 tini &&     mkdir -p /opt/browseruse && dpkg-query -W > /opt/browseruse/packages.lock && rm -rf /var/lib/apt/lists/* &&     useradd --uid 1000 --create-home worker && mkdir /workspace && chown 1000:1000 /workspace",
+                    "comment": "FROM docker.io/library/debian:bookworm-slim"
+               },
+               {
+                    "created": "2026-10-18T23:19:10.617966474Z",
+                    "created_by": "/bin/sh -c #(nop) USER 1000:1000",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:10.70557131Z",
+                    "created_by": "/bin/sh -c #(nop) WORKDIR /workspace",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:10.831788332Z",
+                    "created_by": "/bin/sh -c #(nop) ENV HOME=/home/worker HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 http_proxy=http://egress:3128 https_proxy=http://egress:3128",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:10.926748991Z",
+                    "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"/usr/bin/tini\", \"--\"]",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:11.017307792Z",
+                    "created_by": "/bin/sh -c #(nop) CMD [\"sleep\", \"infinity\"]",
+                    "empty_layer": true
+               }
+          ],
+          "NamesHistory": [
+               "localhost/browseruse-utility:local",
+               "localhost/buk-utility-files-test:latest"
+          ]
+     },
+     {
+          "Id": "1b7a8e502c54dc531fe6f1cb6470ce79e19890d989a166fe669d7a8402a5861d",
+          "Digest": "sha256:92093ad6c5859f6a05517ac1d74534fdaf7cf2f745706e6848146a8f212b824b",
+          "RepoTags": [
+               "localhost/browseruse-egress:local"
+          ],
+          "RepoDigests": [
+               "localhost/browseruse-egress@sha256:92093ad6c5859f6a05517ac1d74534fdaf7cf2f745706e6848146a8f212b824b"
+          ],
+          "Parent": "c3f36c1896288e7d0f1e8649dcf72b8fc1a7b08d73d804e77a4e9b602886ac4b",
+          "Comment": "debuerreotype 0.17",
+          "Created": "2026-10-18T23:19:48.817842429Z",
+          "Config": {
+               "User": "1000:1000",
+               "Env": [
+                    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+               ],
+               "Entrypoint": [
+                    "python3",
+                    "-u",
+                    "/opt/browseruse/proxy.py"
+               ],
+               "Labels": {
+                    "io.buildah.version": "1.43.4"
+               }
+          },
+          "Version": "",
+          "Author": "",
+          "Architecture": "amd64",
+          "Os": "linux",
+          "Size": 126010817,
+          "VirtualSize": 126010817,
+          "GraphDriver": {
+               "Name": "overlay",
+               "Data": {
+                    "LowerDir": "/home/akanksh/.local/share/containers/storage/overlay/39052a63dd3a0f84b7d4be29913508325227b8f061a2f2ea90c85b31f7480d42/diff:/home/akanksh/.local/share/containers/storage/overlay/e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7/diff",
+                    "UpperDir": "/home/akanksh/.local/share/containers/storage/overlay/7399f22435ac9d510415b975e604f7712dfb125494ec2dd29d6b8bcfc5b8a572/diff",
+                    "WorkDir": "/home/akanksh/.local/share/containers/storage/overlay/7399f22435ac9d510415b975e604f7712dfb125494ec2dd29d6b8bcfc5b8a572/work"
+               }
+          },
+          "RootFS": {
+               "Type": "layers",
+               "Layers": [
+                    "sha256:e58989146fcec76699871403b9897b5c014af1ccd85f5a9300a215e7975525d7",
+                    "sha256:7095aa411a33fbf471b9cac2f9808517623cc6fc7dd0220ebffc1dba6fa30344",
+                    "sha256:228e2ed903f5164268e7c1f8ebe4c1d510ba658754e95e4f346307f18e12fcee"
+               ]
+          },
+          "Labels": {
+               "io.buildah.version": "1.43.4"
+          },
+          "Annotations": {
+               "org.opencontainers.image.base.digest": "sha256:a4672c0cb26fbdde88e38fa2dfb6c681942306680e41e4378b28770b6e79ee91",
+               "org.opencontainers.image.base.name": "docker.io/library/debian:bookworm-slim",
+               "org.opencontainers.image.created": "2026-10-18T23:19:48.817842429Z"
+          },
+          "ManifestType": "application/vnd.oci.image.manifest.v1+json",
+          "User": "1000:1000",
+          "History": [
+               {
+                    "created": "2026-10-05T00:00:00Z",
+                    "created_by": "# debian.sh --arch 'amd64' out/ 'bookworm' '@1791158400'",
+                    "comment": "debuerreotype 0.17"
+               },
+               {
+                    "created": "2026-10-18T23:19:48.109230817Z",
+                    "created_by": "/bin/sh -c apt-get update && apt-get install -y --no-install-recommends python3 ca-certificates && mkdir -p /opt/browseruse && dpkg-query -W > /opt/browseruse/packages.lock && rm -rf /var/lib/apt/lists/* && useradd --uid 1000 egress",
+                    "comment": "FROM docker.io/library/debian:bookworm-slim"
+               },
+               {
+                    "created": "2026-10-18T23:19:48.637926108Z",
+                    "created_by": "/bin/sh -c #(nop) COPY file:fe3189413391dc52e38994cf5e8a50d4866c1fdcebe29f85dd56b44aa7345791 in /opt/browseruse/proxy.py      "
+               },
+               {
+                    "created": "2026-10-18T23:19:48.747619574Z",
+                    "created_by": "/bin/sh -c #(nop) USER 1000:1000",
+                    "empty_layer": true
+               },
+               {
+                    "created": "2026-10-18T23:19:48.817986443Z",
+                    "created_by": "/bin/sh -c #(nop) ENTRYPOINT [\"python3\", \"-u\", \"/opt/browseruse/proxy.py\"]",
+                    "empty_layer": true
+               }
+          ],
+          "NamesHistory": [
+               "localhost/browseruse-egress:local"
+          ]
+     }
+]

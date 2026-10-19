@@ -1,0 +1,32 @@
+{
+  "name": "browseruse-kit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "bootstrap": "tsx src/server.ts bootstrap",
+    "test": "tsx --test tests/*.test.ts",
+    "test:runtime": "python3 scripts/test-runtime.py",
+    "check": "npm run typecheck && npm test && npm run test:runtime"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@novnc/novnc": "1.7.0",
+    "chrome-devtools-mcp": "0.12.1",
+    "express": "5.3.0",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "@types/ws": "8.18.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
