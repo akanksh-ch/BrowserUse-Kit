@@ -83,7 +83,7 @@ export function createApp(services:ServerServices,options:ServerOptions) {
     const authorization=req.headers.authorization; const token=authorization?.startsWith('Bearer ')?authorization.slice(7):cookie(req);
     if(!token){res.status(401).json({error:'Authentication required'});return;}
     const identity=services.authenticate(token);res.locals.identity=identity;
-    if(!authorization&&!['GET','HEAD','OPTIONS'].includes(req.method)&&(!identity.csrf||req.headers['x-csrf-token']!==identity.csrf)){res.status(403).json({error:'CSRF validation failed'});return;}
+    if(!authorization?.startsWith('Bearer ')&&!['GET','HEAD','OPTIONS'].includes(req.method)&&(!identity.csrf||req.headers['x-csrf-token']!==identity.csrf)){res.status(403).json({error:'CSRF validation failed'});return;}
     next();
   }catch{res.status(401).json({error:'Invalid or expired credential'});}});
   const handler=(fn:(req:Request,res:Response,p:Identity)=>unknown)=>async(req:Request,res:Response,next:NextFunction)=>{try{const value=await fn(req,res,res.locals.identity);if(!res.headersSent&&value!==undefined)res.json(value);}catch(e){next(e);}};
@@ -168,7 +168,7 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
  login:(u,p,address)=>{const result=auth.login(u,p,address);return {token:result.token,csrf:result.csrf!};},
  bootstrap:(u,p)=>auth.bootstrap(u,p),
  revoke:(p,id)=>{if(id!==p.id)auth.authorize(p as AuthPrincipal,'workspace:manage');auth.revoke(id,p.subject);return {ok:true};},
- issue:(p,b)=>{auth.authorize(p as AuthPrincipal,'workspace:manage');const w=typeof b.workspaceId==='string'?b.workspaceId:null;const permissions=Array.isArray(b.permissions)?b.permissions:[];if(!w||!store.workspace(w)||permissions.some(x=>typeof x!=='string'||(!p.permissions.includes('*')&&!p.permissions.includes(x))))throw Error('Invalid token scope');let reconnectId:string=randomUUID();if(b.reconnectId!==undefined){if(typeof b.reconnectId!=='string'||!store.db.prepare('SELECT 1 FROM agent_reconnect WHERE reconnectId=? AND subject=? AND workspaceId=?').get(b.reconnectId,p.subject,w))throw Error('Invalid reconnect identity');reconnectId=b.reconnectId;}const issued=auth.issue(p.subject,w,permissions,{ttlMs:900000});store.db.prepare('INSERT INTO agent_reconnect VALUES(?,?,?,?)').run(issued.id,reconnectId,p.subject,w);return {...issued,reconnectId};},
+ issue:(p,b)=>{const w=typeof b.workspaceId==='string'?b.workspaceId:null;const permissions=Array.isArray(b.permissions)?b.permissions:[];if(!w||!store.workspace(w)||permissions.some(x=>typeof x!=='string'||(!p.permissions.includes('*')&&!p.permissions.includes(x))))throw Error('Invalid token scope');let reconnectId:string=randomUUID();if(b.reconnectId!==undefined){if(typeof b.reconnectId!=='string'||!store.db.prepare('SELECT 1 FROM agent_reconnect WHERE reconnectId=? AND subject=? AND workspaceId=?').get(b.reconnectId,p.subject,w))throw Error('Invalid reconnect identity');reconnectId=b.reconnectId;}const issued=auth.issueFor(p as AuthPrincipal,w,permissions,{ttlMs:900000});store.db.prepare('INSERT INTO agent_reconnect VALUES(?,?,?,?)').run(issued.id,reconnectId,p.subject,w);return {...issued,reconnectId};},
  list:p=>store.listWorkspaces().filter(w=>(!p.workspaceId||p.workspaceId===w.id)&&(p.permissions.includes('*')||w.ownerId===p.subject)),
  create:(p,b)=>{auth.authorize(p as AuthPrincipal,'workspace:manage');return lifecycle.create(String(b.name??''),p.subject);},
  workspace:id=>store.workspace(id),

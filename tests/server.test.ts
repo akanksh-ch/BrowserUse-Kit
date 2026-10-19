@@ -41,5 +41,21 @@ test('cookie mutations require CSRF; login cookie is host-only HttpOnly SameSite
  const headers={host:'workspace.test','content-type':'application/json'};
  const login=await fetch(base+'/api/login',{method:'POST',headers,body:JSON.stringify({username:'admin',password:'password'})});assert.equal(login.status,200);const cookie=login.headers.get('set-cookie')!;assert.match(cookie,/HttpOnly/);assert.match(cookie,/SameSite=Strict/);assert.doesNotMatch(cookie,/Domain=/);
  assert.equal((await fetch(base+'/api/logout',{method:'POST',headers:{host:'workspace.test',cookie:'buk_session=valid'}})).status,403);
+ assert.equal((await fetch(base+'/api/logout',{method:'POST',headers:{host:'workspace.test',cookie:'buk_session=valid',authorization:'Basic forged'}})).status,403);
  assert.equal((await fetch(base+'/api/logout',{method:'POST',headers:{host:'workspace.test',cookie:'buk_session=valid','x-csrf-token':'secret'}})).status,200);
 }));
+
+test('public delegation enforces ownership, workspace scope and issuer expiry',async()=>{
+ const context=defaultServices(new Store(':memory:'));try{
+ const owner=context.auth.bootstrap('admin','a-long-password-123');
+ const one=context.lifecycle.create('one',owner),other=context.lifecycle.create('other','someone-else');
+ const issued=context.auth.issue(owner,null,['workspace:manage','view'],{ttlMs:60000});
+ const p=context.services.authenticate(issued.token);
+ assert.throws(()=>context.services.issue(p,{workspaceId:other.id,permissions:['view']}));
+ const scoped=context.auth.issue(owner,one.id,['workspace:manage','view'],{ttlMs:60000});
+ const delegate=context.services.issue(context.services.authenticate(scoped.token),{workspaceId:one.id,permissions:['view']}) as {token:string;expiresAt:number};
+ assert.ok(delegate.expiresAt<=scoped.expiresAt);
+ assert.equal(context.services.authenticate(delegate.token).workspaceId,one.id);
+ assert.throws(()=>context.services.issue(context.services.authenticate(scoped.token),{workspaceId:other.id,permissions:['view']}));
+ }finally{await context.close();}
+});
