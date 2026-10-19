@@ -59,3 +59,21 @@ test('public delegation enforces ownership, workspace scope and issuer expiry',a
  assert.throws(()=>context.services.issue(context.services.authenticate(scoped.token),{workspaceId:other.id,permissions:['view']}));
  }finally{await context.close();}
 });
+
+test('credential revocation cannot cross workspace ownership or revoke administrators',async()=>{
+ const context=defaultServices(new Store(':memory:'));try{
+ const owner=context.auth.bootstrap('admin','a-long-password-123');
+ const one=context.lifecycle.create('one',owner),other=context.lifecycle.create('other','someone-else');
+ const admin=context.auth.issue(owner,null,['*']);
+ const manager=context.auth.issue(owner,null,['workspace:manage','view']);
+ const p=context.services.authenticate(manager.token);
+ const foreign=context.auth.issue('someone-else',other.id,['view']);
+ assert.throws(()=>context.services.revoke(p,foreign.id));
+ assert.throws(()=>context.services.revoke(p,admin.id));
+ const own=context.auth.issue(owner,one.id,['view']);
+ context.services.revoke(p,own.id);assert.throws(()=>context.auth.authenticate(own.token));
+ const scoped=context.auth.issue(owner,one.id,['workspace:manage','view']);
+ const own2=context.auth.issue(owner,one.id,['view']);
+ context.services.revoke(context.services.authenticate(scoped.token),own2.id);assert.throws(()=>context.auth.authenticate(own2.token));
+ }finally{await context.close();}
+});

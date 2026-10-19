@@ -167,7 +167,7 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
  authenticate:token=>{const p=auth.authenticate(token);const row=store.db.prepare('SELECT reconnectId FROM agent_reconnect WHERE credentialId=?').get(p.id);return {...p,reconnectId:row?String(row.reconnectId):p.id};},
  login:(u,p,address)=>{const result=auth.login(u,p,address);return {token:result.token,csrf:result.csrf!};},
  bootstrap:(u,p)=>auth.bootstrap(u,p),
- revoke:(p,id)=>{if(id!==p.id)auth.authorize(p as AuthPrincipal,'workspace:manage');auth.revoke(id,p.subject);return {ok:true};},
+ revoke:(p,id)=>{if(id!==p.id){const target=store.db.prepare('SELECT workspaceId FROM credentials WHERE id=?').get(id) as {workspaceId:string|null}|undefined;if(!target)throw Error('Unknown credential');auth.authorize(p as AuthPrincipal,'workspace:manage',target.workspaceId??undefined);if(target.workspaceId===null)auth.authorize(p as AuthPrincipal,'*');}auth.revoke(id,p.subject);return {ok:true};},
  issue:(p,b)=>{const w=typeof b.workspaceId==='string'?b.workspaceId:null;const permissions=Array.isArray(b.permissions)?b.permissions:[];if(!w||!store.workspace(w)||permissions.some(x=>typeof x!=='string'||(!p.permissions.includes('*')&&!p.permissions.includes(x))))throw Error('Invalid token scope');let reconnectId:string=randomUUID();if(b.reconnectId!==undefined){if(typeof b.reconnectId!=='string'||!store.db.prepare('SELECT 1 FROM agent_reconnect WHERE reconnectId=? AND subject=? AND workspaceId=?').get(b.reconnectId,p.subject,w))throw Error('Invalid reconnect identity');reconnectId=b.reconnectId;}const issued=auth.issueFor(p as AuthPrincipal,w,permissions,{ttlMs:900000});store.db.prepare('INSERT INTO agent_reconnect VALUES(?,?,?,?)').run(issued.id,reconnectId,p.subject,w);return {...issued,reconnectId};},
  list:p=>store.listWorkspaces().filter(w=>(!p.workspaceId||p.workspaceId===w.id)&&(p.permissions.includes('*')||w.ownerId===p.subject)),
  create:(p,b)=>{auth.authorize(p as AuthPrincipal,'workspace:manage');return lifecycle.create(String(b.name??''),p.subject);},
@@ -189,7 +189,7 @@ export function defaultServices(store=new Store(process.env.BUK_DATABASE??'data/
   if(name==='mcp'){
    auth.authorize(credential,'automation',w);if(workspace.state!=='ready')throw Error('Workspace not ready');
    const sid=req.headers['mcp-session-id']; if(Array.isArray(sid))throw Error('Invalid session');let session=sid?sessions.get(sid):undefined;
-   if(session&&session.owner!==p.id)throw Error('Session identity mismatch');
+   if(session&&(session.owner!==p.id||session.workspace!==w))throw Error('Session identity mismatch');
    if(!session){if(sid||req.method!=='POST')throw Error('Session not found');const browserUrl=`http://${await privateBrowserAddress(w)}:9223`;
     const upstream=await connectChromeMcp({executable:process.env.BUK_MCP_EXECUTABLE??resolve('node_modules/.bin/chrome-devtools-mcp'),version:MCP_VERSION,browserUrl});
     try{ownership.reconnect(principal);const pages=await refreshPages(w);if(!pages.some(page=>page.connectionId===p.id)){let page=pages.find(page=>!page.reconnectId);if(!page){const created=await browserCdp(w,'Target.createTarget',{url:'about:blank'});ownership.opened(w,created.targetId);page=ownership.pages(w).find(page=>page.targetId===created.targetId) as any;}if(page)ownership.claim(principal,page.targetId);}}catch(e){await upstream.close();throw e;}
