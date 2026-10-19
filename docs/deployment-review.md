@@ -90,3 +90,54 @@ No npm suite, image build, browser runtime, external agent, host reboot or
 performance test was executed in this deployment-only review. Merge other
 workers' evidence explicitly with source commits and environment before changing
 any release status; do not infer their results from this document.
+
+## Opt-in deployed MCP/SSE + WSS smoke gate (follow-up)
+
+`tests/deployment-live.test.ts` can target an **already running, ready** workspace
+without changing runtime/backend/UI files. Supply short-lived workspace-scoped
+credentials through a trusted environment/secret injector, never URL arguments:
+
+```sh
+# Inject BUK_DEPLOY_AGENT_TOKEN (automation) and BUK_DEPLOY_VIEW_TOKEN (view only).
+# They must be distinct; do not paste secrets into shell history or this document.
+export BUK_DEPLOY_URL=https://your-configured-host.example
+export BUK_DEPLOY_WORKSPACE=your-ready-workspace-id
+BUK_DEPLOY_LIVE=1 node --import tsx --test tests/deployment-live.test.ts
+unset BUK_DEPLOY_AGENT_TOKEN BUK_DEPLOY_VIEW_TOKEN
+```
+
+Use the normal trusted public certificate chain. For an internal PKI, set
+`NODE_EXTRA_CA_CERTS` to its trusted CA file before launching Node. Never use
+`NODE_TLS_REJECT_UNAUTHORIZED=0`. Origin configuration rejects plaintext, URL
+credentials, paths, queries and fragments. Failure messages omit credentials,
+raw MCP errors and page results; protected deployment diagnostics are still needed.
+
+The gate checks unauthenticated and view-only MCP initialization denial, an
+actual SDK Streamable HTTP session, tool discovery, read-only `list_pages`, an
+observed `text/event-stream` response, session termination, unauthenticated WSS
+denial, and an authenticated binary RFB banner over WSS. It sends **no RFB client
+input**, navigations, mutations, lifecycle calls, or automation-lease requests.
+The underlying MCP service may assign an initial tab per its normal connect
+contract; use a disposable test workspace. Bearer credentials stay in headers.
+
+### Executed harness verification versus unexecuted deployment proof
+
+Executed locally on 2026-10-19 with Node 22.23.1 and Caddy 2.11.7:
+
+- `npm run typecheck`: passed including both new TypeScript files.
+- `node --import tsx --test tests/deployment-live.test.ts`: config guard passed;
+  real-deployment test **SKIPPED**, because no deployment credentials were supplied.
+- `CADDY=/tmp/buk-caddy node --import tsx tests/deployment-fixture.ts`: **2 tests
+  passed, no skips** through a real loopback TLS Caddy gateway. This fixture uses
+  the production Caddyfile with only test origin/ports/certificate substitutions,
+  a real MCP SDK server/transport, a synthetic empty page-list tool, synthetic
+  bearer checks and an artificial RFB banner. The temporary certificate is
+  explicitly trusted, and all listeners/files/processes are test-scoped.
+
+The fixture proves the smoke harness and real Caddy MCP/SSE/WSS forwarding work
+with these synthetic protocol endpoints. It **does not** exercise production
+Node authorization, Chrome DevTools MCP, real Chrome/VNC/noVNC, per-event input
+gating, revocation timing, workspace scoping, public ACME, firewalling or Docker.
+The opt-in gate against a real provisioned workspace remains **NOT RUN** here.
+Even a future successful deployed smoke is partial §16 evidence, not complete
+`AT-020`, `AT-040`, `AT-060`, `AT-067` or release acceptance.

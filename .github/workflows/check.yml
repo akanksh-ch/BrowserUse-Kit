@@ -31,3 +31,8 @@ jobs:
         run: |
           sh deploy/check.sh
           python3 tests/deployment.test.py -v
+      # Real gateway/protocol transport with synthetic auth, pages and RFB only.
+      # This explicitly enables the smoke harness against disposable fixtures;
+      # it does not turn skipped real OCI/browser acceptance into passing tests.
+      - name: Exercise MCP SSE and WSS through real Caddy
+        run: node --import tsx tests/deployment-fixture.ts
