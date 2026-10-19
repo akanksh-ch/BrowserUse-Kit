@@ -29,6 +29,17 @@ export class Auth {
     const granted:string[]=JSON.parse(row.permissions);
     if(permissions.some(p=>!granted.includes('*')&&!granted.includes(p)))throw new Error('Permission escalation denied');
     const w=this.store.workspace(workspaceId);if(!w||w.state==='deleted'||w.state==='deleting')throw new Error('Workspace unavailable');
+    // Subject-wide durable budget prevents rotating delegated credentials to bypass limits.
+    const limited=this.store.transaction(()=>{
+      const now=Date.now();const prior=this.store.db.prepare('SELECT * FROM token_limits WHERE subject=?').get(issuer.subject) as {attempts:number;windowStart:number;nextAttempt:number}|undefined;
+      const current=prior&&(now-prior.windowStart<60000||prior.nextAttempt>now)?prior:{attempts:0,windowStart:now,nextAttempt:0};
+      const attempts=current.attempts+1;const denied=attempts>20||current.nextAttempt>now;
+      const nextAttempt=denied?now+Math.min(60000,250*2**Math.min(attempts-20,8)):0;
+      this.store.audit(workspaceId,denied?'auth.issue_limited':'auth.issue_requested',issuer.subject,denied?'Token issuance throttled':'Token issuance requested');
+      this.store.db.prepare('INSERT OR REPLACE INTO token_limits VALUES(?,?,?,?)').run(issuer.subject,attempts,current.windowStart,nextAttempt);
+      return denied;
+    });
+    if(limited)throw Object.assign(new Error('Token issuance temporarily unavailable'),{status:429});
     return this.issue(issuer.subject,workspaceId,permissions,{ttlMs:Math.min(options.ttlMs??900000,row.expiresAt-Date.now())});
   }
   login(username:string,password:string,rateKey:string){if(username.length>64||password.length>1024)throw new Error('Invalid credentials');const key=hash(rateKey),now=Date.now();const limit=this.store.db.prepare('SELECT * FROM login_limits WHERE key=?').get(key) as {failures:number;nextAttempt:number}|undefined;

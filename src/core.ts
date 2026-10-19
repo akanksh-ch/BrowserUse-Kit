@@ -18,7 +18,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS roles(name TEXT PRIMARY KEY,permissions TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS credentials(hash TEXT PRIMARY KEY,id TEXT NOT NULL UNIQUE,subject TEXT NOT NULL,workspaceId TEXT,audience TEXT NOT NULL,permissions TEXT NOT NULL,expiresAt INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,kind TEXT NOT NULL,csrf TEXT,lastActivity INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS lifecycle_locks(workspaceId TEXT PRIMARY KEY,holder TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS login_limits(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,nextAttempt INTEGER NOT NULL);`);
+      CREATE TABLE IF NOT EXISTS login_limits(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,nextAttempt INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS token_limits(subject TEXT PRIMARY KEY,attempts INTEGER NOT NULL,windowStart INTEGER NOT NULL,nextAttempt INTEGER NOT NULL);`);
   }
   transaction<T>(fn:()=>T):T { this.db.exec('BEGIN IMMEDIATE'); try { const result=fn(); this.db.exec('COMMIT'); return result; } catch(e){this.db.exec('ROLLBACK');throw e;} }
   audit(workspaceId:string|null,type:string,sourceId:string,summary:string) {

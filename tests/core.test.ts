@@ -19,6 +19,21 @@ test('salted scrypt bootstrap, login, CSRF, exact host, cookie and idle session 
 test('workspace ownership and delegated token issuance use durable authority',()=>{
  const s=new Store(':memory:');try{const a=new Auth(s),w=s.createWorkspace('owned','alice');const c=a.issue('bob',null,['view','workspace:manage']);const p=a.authenticate(c.token);assert.throws(()=>a.authorize(p,'view',w.id));p.permissions.push('*');assert.throws(()=>a.issueFor(p,w.id,['view']));const owner=a.authenticate(a.issue('alice',null,['view','workspace:manage']).token);assert.throws(()=>a.issueFor(owner,w.id,['shell']));const scoped=a.issueFor(owner,w.id,['view']);a.authorize(a.authenticate(scoped.token),'view',w.id);s.setState(w.id,'deleting','deleted');assert.throws(()=>a.authorize(a.authenticate(scoped.token),'view',w.id));}finally{s.close();}
 });
+test('delegated issuance throttles by durable subject across credentials and audits denials',()=>{
+ const s=new Store(':memory:');try{
+  let now=Date.now();const original=Date.now;Date.now=()=>now;
+  try{const a=new Auth(s),w=s.createWorkspace('rate','owner');const p=a.authenticate(a.issue('owner',null,['*']).token);
+   for(let i=0;i<20;i++)a.issueFor(p,w.id,['view']);
+   const before=Number(s.db.prepare('SELECT COUNT(*) n FROM credentials').get()!.n);
+   assert.throws(()=>a.issueFor(p,w.id,['view']),/temporarily unavailable/);
+   assert.equal(Number(s.db.prepare('SELECT COUNT(*) n FROM credentials').get()!.n),before);
+   const other=new Auth(s).authenticate(a.issue('owner',null,['*']).token);
+   assert.throws(()=>new Auth(s).issueFor(other,w.id,['view']),/temporarily unavailable/);
+   assert.equal(s.db.prepare("SELECT COUNT(*) n FROM events WHERE type='auth.issue_limited'").get()!.n,2);
+   now+=60001;a.issueFor(other,w.id,['view']);
+  }finally{Date.now=original;}
+ }finally{s.close();}
+});
 test('human leases and tracked requests prevent idle shutdown, stale holds expire',async()=>{
  const s=new Store(':memory:');try{const f=fake();let human:{expiresAt:number}|undefined={expiresAt:Date.now()+30000};const l=new Lifecycle(s,f.d,{humanLease:()=>human});await l.reconcile();const w=l.create('test','owner',1);await l.start(w.id);s.db.prepare('UPDATE workspaces SET lastActivity=0 WHERE id=?').run(w.id);await l.tick();assert.equal(s.workspace(w.id)?.state,'ready');human=undefined;const end=l.beginOperation(w.id);s.db.prepare('UPDATE workspaces SET lastActivity=0 WHERE id=?').run(w.id);await l.tick();assert.equal(s.workspace(w.id)?.state,'ready');end();l.holdActivity(w.id,'task',Date.now()+30000);s.db.prepare('UPDATE workspaces SET lastActivity=0 WHERE id=?').run(w.id);await l.tick();assert.equal(s.workspace(w.id)?.state,'ready');l.releaseActivity(w.id,'task');s.db.prepare('UPDATE workspaces SET lastActivity=0 WHERE id=?').run(w.id);await l.tick();assert.equal(s.workspace(w.id)?.state,'stopped');}finally{s.close();}
 });
