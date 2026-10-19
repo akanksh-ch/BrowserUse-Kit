@@ -1,3 +1,31 @@
+# Operator UI verification
+
+## Scope
+
+Operate-mode refinement of the existing React/shadcn Button/Tailwind console. Preserve cookie/CSRF API integration and server-side authorization; no backend or container changes. Desktop uses two equal grid columns; narrow screens stack them. No speculative dashboard, fake telemetry, or simulated runtime readiness.
+
+## Executed evidence
+
+- `npm run typecheck`: passed.
+- `npm test`: 40 tests, 37 passed, 3 live-runtime tests skipped, 0 failed.
+- `npm run build`: passed; checked-in public assets regenerated.
+- Impeccable detector on frontend shell, controller, and stylesheet returned `[]`.
+- Chrome DevTools against the real local Node/SQLite service with a disposable `/tmp` database: CLI bootstrap, administrator login, cookie session restoration, create/select workspace, authoritative created/stopped state, command-history empty state, credentials dialog opening and Escape dismissal.
+- Viewer/control actions remain disabled for a workspace not reported ready.
+- Inspected full-page desktop and 390px mobile screenshots. Mobile measured `innerWidth=390`, document width `390`; no document-level horizontal overflow. Workspace panel navigation scrolls locally.
+- Mobile Lighthouse snapshot: Accessibility 100, Best Practices 100, Agentic Browsing 100. SEO 75: no meta description (private operator console; not addressed).
+- Added controller regression coverage for observed/desired state, readiness-gated actions, system-source lifecycle events, and unknown timestamps.
+
+## Remaining acceptance gates
+
+The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.
+
+Resource usage, resolved versions/image digest, and per-workspace capture/network-policy values are not exposed by the present workspace record. The console must not invent them. Existing explanatory security copy is not a live health attestation. Full SRS release acceptance remains broader than this UI refinement.
+
+## Historical integration smoke (before this refinement)
+
+The following records an earlier implementation; API limitations described here may have since changed. Current evidence and gates are above.
+
 # Operator UI integration smoke
 
 Tested against the real `src/server.ts`, Node 22, Chromium browser tools, isolated SQLite `/tmp/buk-ui-check.sqlite`, loopback port 3001. No source-server changes made for this task.
