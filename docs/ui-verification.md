@@ -40,6 +40,37 @@ Inspected `origin/fix/v1-backend` without merging its pending changes. Command s
 
 Expanded the runnable controller harness to execute actual registered form/button handlers: command inputs remain their submitted values during delayed acquisition; upload/delete keep the original directory if the path input changes while awaiting a lease; switching workspaces during upload sends no mutation. It also verifies page-transfer owner payload and renewal/release methods/IDs, alongside credential-expiry assertions. `npm run check` and production build pass. These are deterministic client checks, not claims of real runtime execution.
 
+## Latest production browser regression
+
+Using DevTools against the latest built assets and existing real loopback backend: keyboard-only Tab/type/Enter login and workspace creation succeeded; Tab/Enter opened the named credentials dialog and Escape dismissed it. Issued a real disposable credential and verified only presence, never captured its value in evidence.
+
+Reproduced logout retaining hidden credential/timeline rows despite clearing the one-time token. Fixed logout to clear sensitive panel DOM, in-memory lists, identity/status, and command/upload/token forms. Added a behavioral test asserting panel/token cleanup and viewer disconnect; live VNC is still unavailable. Rebuilt and rechecked browser logout with non-secret sentinels: login shown, token empty, all sensitive panels empty.
+
+Browser fault injection (not runtime acceptance): delayed workspace A's inspect response, switched to B, then resolved A; B's name/ID remained selected. Injected a files HTTP 503 and verified visible diagnostic/retry guidance. Latest mobile build measured 390px document width at 390px viewport. Desktop/browser functional checks and earlier screenshot checks remain valid; CSS was unchanged. `npm run check`, build, and diff whitespace checks passed.
+
+## Logout follow-up PR
+
+The initial logout fix was pushed after #3 had merged; it is now cherry-picked onto a fresh branch from current main in follow-up PR #6, not treated as integrated through the closed PR. Reproduced another late-response defect in the runnable handler harness: a successful create response after logout selected its workspace (`1 !== 0`). Added epoch checks around create response/refresh; the same check now passes. Added explicit HTTP 401 cleanup and late credential-list response assertions; neither repopulates cleared secrets. Full local check/build passes on the follow-up branch. Hosted checks were not reported for #6 at the time inspected; no hosted CI success is claimed.
+
+## Integrated backend #4 browser proof
+
+Exported backend commit `c47f349cfc9eb7781b2d0113a83cc62bc64f2772` to disposable `/tmp/buk-ui-integration`, linked installed dependencies, overlaid current production assets, and ran a separate loopback backend on 3018 with disposable SQLite and `BUK_FILES_ROOT`. No backend worktree edited and no real user data used. A test-only `files/common` directory was provisioned directly; no container/profile persistence is inferred.
+
+DevTools: real UI login/select, native file-picker upload, list, byte-exact download, confirmed deletion, then empty directory all succeeded. Scoped read-only credential issuance/read returned 200; its attempted write returned 403; unauthenticated list returned 401. Temporary credential revoked. Found a real UI contract mismatch: quota API supplies `quotaBytes`, but UI only checked `limitBytes/limit` and showed an unknown limit. Added `quotaBytes` handling and a runnable regression assertion; latest browser renders `0 / 10737418240 bytes`. Check/build pass.
+
+### Ready-to-run runtime gate (not executed here)
+
+On a documented disposable acceptance host with sandbox prerequisites, utility image, X display, Google Chrome, x11vnc and Xvfb installed:
+
+```sh
+npm ci
+npm run check
+npm run build
+BUK_TEST_OCI=podman BUK_TEST_IMAGE=browseruse-utility:local BUK_LIVE_MCP=1 BUK_LIVE_RFB=1 npm test
+```
+
+Set `BUK_CHROME` and `DISPLAY` if the host differs from documented defaults. These opt-in checks are prerequisites, not complete SRS acceptance. Then bootstrap a disposable real deployment, create/start a workspace and require observed `ready`; use the production UI to connect view-only, take control, verify agent mutation denial, release/renew/expire control, exercise emergency stop, and verify uploads through the browser plus profile/files across replacement. Record real health failures rather than forcing state. Run network-isolation and sandbox acceptance separately as specified in SRS §16.
+
 ## Remaining acceptance gates
 
 The three skipped tests require real OCI utility execution, headful Chrome/MCP, and live x11vnc/input gating. This UI pass does not establish those acceptance conditions. Live viewer frames, takeover/release/renewal, emergency cancellation, browser upload/download, image readiness, persistence across container replacement/reboot, and network isolation require the runtime owner's integrated verification.

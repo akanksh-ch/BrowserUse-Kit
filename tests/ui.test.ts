@@ -5,10 +5,11 @@ import { runInNewContext } from 'node:vm';
 
 test('operator state never invents readiness or timestamps; lifecycle events filter as system', async () => {
   const nodes = new Map<string, any>();
-  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', children: [] as any[], listeners: {} as Record<string, Function>, addEventListener(type: string, handler: Function) { this.listeners[type] = handler; }, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
+  const node = () => ({ textContent: '', disabled: false, hidden: false, value: '', close() {}, reset() {}, children: [] as any[], listeners: {} as Record<string, Function>, addEventListener(type: string, handler: Function) { this.listeners[type] = handler; }, append(...children: any[]) { this.children.push(...children); }, replaceChildren() { this.children = []; }, get childElementCount() { return this.children.length; } });
   const document = { getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); }, createElement: node, querySelectorAll: () => [] };
   const source = readFileSync(new URL('../frontend/controller.js', import.meta.url), 'utf8').replace(/run\(async \(\) => \{ try \{ const me =[\s\S]*$/, '');
   await runInNewContext(source + `(async () => {
+    const realApi = api;
     selected = { id: 'test', state: 'starting', desiredState: 'ready' };
     renderWorkspace();
     assert.equal($('workspace-state').textContent, 'Observed: starting · Desired: ready');
@@ -85,8 +86,9 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     assert.equal(requests.length, 1);
     // File deletion keeps the path rendered for the original directory.
     selected = {id:'workspace-c'}; $('file-path').value = 'common/original';
-    api = async () => ({quota:{usedBytes:0,limitBytes:100},files:[{name:'report.pdf'}]});
+    api = async () => ({quota:{usedBytes:0,quotaBytes:100},files:[{name:'report.pdf'}]});
     await realLoadFiles();
+    assert.equal($('quota').textContent, '0 / 100 bytes');
     const deleteButton = $('file-list').children[0].children.at(-1);
     confirm = () => true; requests.length = 0;
     api = async (url, options) => { requests.push({url,options}); return url.endsWith('/leases/automation') ? new Promise(resolve => {resolvePending=resolve;}) : {}; };
@@ -109,5 +111,28 @@ test('operator state never invents readiness or timestamps; lifecycle events fil
     $('page-list').children[0].children.at(-1).listeners.click(); await operation;
     assert.equal(requests[0].url, '/api/workspaces/workspace-c/pages/page-1');
     assert.equal(requests[0].options.body.owner, 'connection-2');
-  })()`, { document, setInterval() {}, assert, Headers, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
+    let disconnected = false; rfb = {disconnect(){disconnected = true;}};
+    for (const id of ['events','command-history','file-list','page-list','screenshot-list','token-list']) $(id).append({textContent:'sensitive'});
+    $('token-result').value = 'one-time-secret';
+    signOutLocal();
+    assert.equal(disconnected, true); assert.equal(rfb, null);
+    assert.equal($('token-result').value, '');
+    assert.equal(events.length, 0); assert.equal(workspaces.length, 0);
+    for (const id of ['events','command-history','file-list','page-list','screenshot-list','token-list']) assert.equal($(id).children.length, 0);
+    let resolveCreate; const selections = [];
+    api = async (url, options) => options?.method === 'POST' ? new Promise(resolve => {resolveCreate=resolve;}) : [];
+    choose = async ws => {selections.push(ws.id);};
+    $('create-form').listeners.submit({preventDefault(){},target:{data:{name:'late create'},reset(){}}});
+    const creating = operation; signOutLocal(); resolveCreate({id:'late-workspace'}); await creating;
+    assert.equal(selections.length, 0, 'late create must not select a workspace after logout');
+    selected = {id:'workspace-c'}; let resolveTokens;
+    api = () => new Promise(resolve => {resolveTokens=resolve;});
+    const listingTokens = loadTokens(); signOutLocal();
+    resolveTokens([{id:'secret-metadata',subject:'private-subject'}]); await listingTokens;
+    assert.equal($('token-list').children.length,0);
+    $('token-result').value = 'secret'; $('events').append({textContent:'private'});
+    fetch = async () => new Response(JSON.stringify({error:'expired'}),{status:401,headers:{'Content-Type':'application/json'}});
+    await assert.rejects(realApi('/api/workspaces'), /Session expired/);
+    assert.equal($('token-result').value,''); assert.equal($('events').children.length,0);
+  })()`, { document, setInterval() {}, assert, Headers, Response, fetch: async () => new Response(JSON.stringify({error:'Operation failed'}), {status:503,headers:{'Content-Type':'application/json'}}) });
 });
