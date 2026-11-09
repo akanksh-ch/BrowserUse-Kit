@@ -1,0 +1,12 @@
+{
+  "ExtensionInstallForcelist": [
+    "nngceckbapebfimnlniiiahkandclblb;https://clients2.google.com/service/update2/crx"
+  ],
+  "3rdparty": {
+    "extensions": {
+      "nngceckbapebfimnlniiiahkandclblb": {
+        "environment": { "base": "http://vaultwarden" }
+      }
+    }
+  }
+}

@@ -26,6 +26,17 @@ services:
       - outputs:/data
     restart: unless-stopped
 
+  vaultwarden:                           # Bitwarden-compatible vault; the browser extension autofills logins
+    image: docker.io/vaultwarden/server:latest
+    environment:
+      SIGNUPS_ALLOWED: ${VAULT_SIGNUPS:-true}   # set to false after creating your account
+    ports:
+      - "${BIND:-127.0.0.1}:8080:80"
+    volumes:
+      - vault:/data
+    restart: unless-stopped
+
 volumes:
   home:
+  vault:
   outputs:
