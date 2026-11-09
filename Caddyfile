@@ -1,0 +1,4 @@
+vault {
+	tls internal
+	reverse_proxy vaultwarden:80
+}

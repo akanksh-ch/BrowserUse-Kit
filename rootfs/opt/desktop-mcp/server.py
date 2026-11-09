@@ -20,7 +20,7 @@ def screenshot() -> Image:
     """Capture the full desktop as PNG."""
     with tempfile.NamedTemporaryFile(suffix=".png") as f:
         run("scrot", "-o", "-z", f.name)
-        return Image(path=f.name)
+        return Image(data=f.read(), format="png")
 
 
 @mcp.tool()

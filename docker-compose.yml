@@ -1,15 +1,51 @@
 services:
   desktop:
+    image: ghcr.io/akanksh-ch/browseruse-kit:latest
     build: .
     shm_size: 2gb
     environment:
       PASSWORD: ${PASSWORD:-agent}
       RESOLUTION: 1440x900
     ports:
-      - "6080:6080"   # browser desktop (noVNC)
-      - "2222:22"     # ssh
+      - "${BIND:-127.0.0.1}:6080:6080"   # browser desktop (noVNC)
+      - "${BIND:-127.0.0.1}:2222:22"     # ssh
     volumes:
       - home:/home/agent
+      - outputs:/home/agent/outputs      # agent deliverables, browsable in `files`
+      - caddy:/caddy:ro                  # local CA root, trusted by Chromium for https://vault
     restart: unless-stopped
+
+  files:                                 # web file browser for ~/outputs (dufs)
+    image: docker.io/sigoden/dufs:latest
+    user: "1000:1000"
+    command: /data -A
+    environment:
+      DUFS_AUTH: admin:${PASSWORD:-agent}@/:rw
+    ports:
+      - "${BIND:-127.0.0.1}:8081:5000"
+    volumes:
+      - outputs:/data
+    restart: unless-stopped
+
+  vault:                                 # TLS front for Vaultwarden (Bitwarden clients require https)
+    image: docker.io/library/caddy:2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy:/data
+    restart: unless-stopped
+
+  vaultwarden:                           # Bitwarden-compatible vault; the browser extension autofills logins
+    image: docker.io/vaultwarden/server:latest
+    environment:
+      SIGNUPS_ALLOWED: ${VAULT_SIGNUPS:-true}   # set to false after creating your account
+    ports:
+      - "127.0.0.1:8080:80"              # plain http, loopback only; clients use https://vault
+    volumes:
+      - vault-data:/data
+    restart: unless-stopped
+
 volumes:
   home:
+  vault-data:
+  outputs:
+  caddy:
