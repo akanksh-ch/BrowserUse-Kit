@@ -14,8 +14,8 @@ A self-hosted, persistent Linux desktop for AI agents. Each instance is a Debian
  browser :6080 ───▶ │ noVNC ─▶ Xtigervnc :1 ◀── XFCE4 ◀── Chromium (CDP :9222, Bitwarden ext.)  │
  ssh     :2222 ───▶ │ sshd ─▶ tmux ─▶ claude / other agents ─▶ MCP: chrome-devtools, desktop    │
                     └──────────────┬─────────────────────────────────────────────┬─────────────┘
-                                   │ ~/outputs (volume)                          │ http://vaultwarden
- browser :8081 ───▶ files (dufs) ──┘                      vaultwarden :8080 ◀─────┘
+                                   │ ~/outputs (volume)                          │ https://vault
+ browser :8081 ───▶ files (dufs) ──┘          vault (Caddy, local CA) ─▶ vaultwarden
 ```
 
 ## Quick start
@@ -33,7 +33,7 @@ PASSWORD='choose-a-password' docker compose up -d --build   # or: podman compose
 | Desktop in the browser | http://localhost:6080/vnc.html?autoconnect=true | `PASSWORD` |
 | SSH | `ssh -p 2222 agent@localhost` | user `agent`, `PASSWORD` |
 | Files (`~/outputs`) | http://localhost:8081 | user `admin`, `PASSWORD` |
-| Vault web UI | http://localhost:8080 | your own account |
+| Vault web UI | http://localhost:8080 (loopback only) | your own account |
 
 All ports bind to `127.0.0.1` by default. See [Hosting](#hosting) to expose them.
 
@@ -64,10 +64,12 @@ For native GTK and Qt apps, prefer `a11y_tree` and `a11y_click` (they address el
 
 ### Sign-in with the vault
 
-1. Open the desktop, click the Bitwarden extension in Chromium, and choose **Create account**. The extension is preconfigured for the bundled Vaultwarden.
+1. In the desktop's Chromium, open `https://vault` and create an account, or use the extension's **Create account**. The extension is preconfigured for it. Bitwarden clients refuse plain HTTP, so a Caddy container terminates TLS with its own local CA, and the entrypoint adds that CA to Chromium's trust store.
 2. Set `VAULT_SIGNUPS=false` and run `docker compose up -d` again so nobody else can register.
 3. Unlock the vault yourself in the desktop. The master password never goes through the agent.
-4. Tell the agent to log in. On a login page, autofill with `Ctrl+Shift+L` or enable *Autofill on page load* in the extension settings.
+4. Tell the agent to log in. Autofill is driven from the extension (toolbar icon, or *Autofill on page load* in its settings).
+
+The extension's server URL is stored in the Chromium profile. If you change it after first use, reset the profile (`rm -rf ~/.chromium-profile` inside the container, then restart Chromium).
 
 This reduces how often secrets pass through prompts and logs. It is not a hard boundary: an agent with desktop access can see anything visible on screen while the vault is unlocked, so lock the vault when you are not supervising.
 
@@ -88,7 +90,7 @@ Do not publish the raw ports on the internet. Put the web services behind a TLS 
 - **VNC passwords are truncated to 8 characters by the protocol.** Treat the noVNC password as weak and add proxy-level auth (basic auth, OIDC, or a VPN such as Tailscale or WireGuard).
 - **SSH:** copy your public key into `/home/agent/.ssh/authorized_keys` on the volume, then restrict access with a firewall or a VPN.
 - **The Chromium debug port (9222) is not published.** Keep it that way: CDP has no authentication.
-- **Vaultwarden needs HTTPS** for its web UI when accessed from anywhere other than `localhost`.
+- **Vaultwarden** is only published on `127.0.0.1:8080`, and the desktop reaches it over `https://vault` inside the compose network. To use it from your own browser on another machine, publish your own TLS proxy for it.
 
 Example Caddy config (Caddy handles WebSocket upgrades and certificates automatically):
 
@@ -100,12 +102,7 @@ desktop.example.com {
 files.example.com {
     reverse_proxy 127.0.0.1:8081
 }
-vault.example.com {
-    reverse_proxy 127.0.0.1:8080
-}
 ```
-
-With a public vault URL, update the extension's server URL to match it.
 
 ### Prebuilt image
 
@@ -143,4 +140,5 @@ docker compose exec desktop supervisorctl status
 
 - The XFCE panel's inner buttons have no accessible names, so use coordinates for those.
 - Chromium is driven through CDP, not AT-SPI.
+- The desktop can repaint several seconds late under software rendering. When driving it, wait before taking a screenshot after an action.
 - Wayland-native apps are not supported inside the container, which runs an X11 desktop. Use `ssh -X` from an X11 or XWayland host to forward individual X11 apps to your own display.
