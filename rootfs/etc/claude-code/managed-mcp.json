@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "chrome-devtools-mcp",
+      "args": ["--browserUrl", "http://127.0.0.1:9222"]
+    },
+    "desktop": {
+      "command": "/opt/venv/bin/python",
+      "args": ["/opt/desktop-mcp/server.py"],
+      "env": {
+        "DISPLAY": ":1",
+        "DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/dbus-session"
+      }
+    }
+  }
+}
