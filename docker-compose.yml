@@ -1,15 +1,31 @@
 services:
   desktop:
+    image: ghcr.io/akanksh-ch/browseruse-kit:latest
     build: .
     shm_size: 2gb
     environment:
       PASSWORD: ${PASSWORD:-agent}
       RESOLUTION: 1440x900
     ports:
-      - "6080:6080"   # browser desktop (noVNC)
-      - "2222:22"     # ssh
+      - "${BIND:-127.0.0.1}:6080:6080"   # browser desktop (noVNC)
+      - "${BIND:-127.0.0.1}:2222:22"     # ssh
     volumes:
       - home:/home/agent
+      - outputs:/home/agent/outputs      # agent deliverables, browsable in `files`
     restart: unless-stopped
+
+  files:                                 # web file browser for ~/outputs (dufs)
+    image: docker.io/sigoden/dufs:latest
+    user: "1000:1000"
+    command: /data -A
+    environment:
+      DUFS_AUTH: admin:${PASSWORD:-agent}@/:rw
+    ports:
+      - "${BIND:-127.0.0.1}:8081:5000"
+    volumes:
+      - outputs:/data
+    restart: unless-stopped
+
 volumes:
   home:
+  outputs:
