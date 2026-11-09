@@ -5,7 +5,7 @@
   "3rdparty": {
     "extensions": {
       "nngceckbapebfimnlniiiahkandclblb": {
-        "environment": { "base": "http://vaultwarden" }
+        "environment": { "base": "https://vault" }
       }
     }
   }

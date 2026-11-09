@@ -12,6 +12,7 @@ services:
     volumes:
       - home:/home/agent
       - outputs:/home/agent/outputs      # agent deliverables, browsable in `files`
+      - caddy:/caddy:ro                  # local CA root, trusted by Chromium for https://vault
     restart: unless-stopped
 
   files:                                 # web file browser for ~/outputs (dufs)
@@ -26,17 +27,25 @@ services:
       - outputs:/data
     restart: unless-stopped
 
+  vault:                                 # TLS front for Vaultwarden (Bitwarden clients require https)
+    image: docker.io/library/caddy:2
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - caddy:/data
+    restart: unless-stopped
+
   vaultwarden:                           # Bitwarden-compatible vault; the browser extension autofills logins
     image: docker.io/vaultwarden/server:latest
     environment:
       SIGNUPS_ALLOWED: ${VAULT_SIGNUPS:-true}   # set to false after creating your account
     ports:
-      - "${BIND:-127.0.0.1}:8080:80"
+      - "127.0.0.1:8080:80"              # plain http, loopback only; clients use https://vault
     volumes:
-      - vault:/data
+      - vault-data:/data
     restart: unless-stopped
 
 volumes:
   home:
-  vault:
+  vault-data:
   outputs:
+  caddy:

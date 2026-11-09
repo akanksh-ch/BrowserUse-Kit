@@ -3,7 +3,7 @@ ENV RESOLUTION=1440x900 DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
       xfce4 xfce4-terminal dbus-x11 tigervnc-standalone-server tigervnc-tools novnc websockify \
       openssh-server tmux supervisor sudo curl ca-certificates git nano procps \
-      chromium nodejs npm xdotool wmctrl scrot xauth x11-apps python3-venv python3-pyatspi at-spi2-core fonts-noto-color-emoji fonts-liberation \
+      chromium nodejs npm xdotool wmctrl scrot xauth x11-apps python3-venv python3-pyatspi at-spi2-core libnss3-tools fonts-noto-color-emoji fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 RUN useradd -m -s /bin/bash -G sudo agent \
     && echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
