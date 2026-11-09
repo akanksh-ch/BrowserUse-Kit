@@ -1,0 +1,15 @@
+services:
+  desktop:
+    build: .
+    shm_size: 2gb
+    environment:
+      PASSWORD: ${PASSWORD:-agent}
+      RESOLUTION: 1440x900
+    ports:
+      - "6080:6080"   # browser desktop (noVNC)
+      - "2222:22"     # ssh
+    volumes:
+      - home:/home/agent
+    restart: unless-stopped
+volumes:
+  home:
